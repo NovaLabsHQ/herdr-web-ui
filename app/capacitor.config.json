@@ -1,6 +1,6 @@
 {
   "appId": "dev.herdr.app",
-  "appName": "herdr",
+  "appName": "Ovis",
   "webDir": "www",
   "ios": {
     "contentInset": "never"

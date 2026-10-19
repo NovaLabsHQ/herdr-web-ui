@@ -162,8 +162,14 @@ What is there:
   - Settings → Phone & devices has a Change PC row, and so does the pairing screen (a PC that
     asks for pairing would otherwise leave the app no way out).
   - The app counts as installed, so Install app is not offered.
-- The bundle ID is `dev.herdr.app` and the name is herdr, both placeholders until the store
-  listing.
+- The app is called Ovis (Latin for sheep, the herd herdr tends). Other apps in both stores are
+  already named Ovis, so the store listing can say "Ovis for herdr". The bundle ID
+  `dev.herdr.app` is still a placeholder.
+- The icon is a ram's head in two blue curls on a white tile with a faint grid
+  (`app/assets/ovis-icon.svg`). The PNGs beside it are the sources for both platforms' icons and
+  splash screens. After changing them, run
+  `npx @capacitor/assets generate --ios --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#12100e'`
+  in `app/`, and put back `AndroidManifest.xml` if the tool reformatted it.
 
 Build and run it on a Mac with Xcode:
 
@@ -275,7 +281,10 @@ were read through the WebView's DevTools socket (`webview_devtools_remote_<pid>`
 
 Still open on Android:
 
-- The status bar is a white strip above the dark app.
+- The emulator showed the status bar as a white strip above the dark app. On a Galaxy Z Flip6 it
+  looks right.
+- On Android 12 and later, the system's launch screen shows the icon on a light background
+  before the dark app.
 - `error.html` shows no reason, as Android's error callback gives Capacitor's listeners none.
 - QR scanning and IME were not tried in the emulator; a physical phone should check them.
 
@@ -292,6 +301,6 @@ Still open on Android:
   Transport Security exception that review must accept. `https` through `tailscale serve` needs
   none.
 - Several PCs: the app should list them, as the remote PCs feature does in the browser.
-- Not decided: the relay's domain, the bundle ID and the app's store name.
+- Not decided: the relay's domain and the bundle ID. The app's name is Ovis.
 - The macbook is shared with other sessions (a ChatGPT CUA was running on 2026-10-18): check it
   is free before booting a simulator there.
