@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "n
 import { basename, dirname, join, relative, sep } from "node:path";
 import type { SlashCommand } from "../../shared/protocol.ts";
 import type { AgentCommandSource } from "./index.ts";
-import { customCommands, environValue, plainObject, readFrontmatter, stripJsonc, walkSkills } from "./walk.ts";
+import { customCommands, environValue, parseJsonc, plainObject, readFrontmatter, walkSkills } from "./walk.ts";
 
 /**
  * Devin 3000.11.92: config imports default on. Native roots are one level deep; imported
@@ -41,8 +41,7 @@ const descriptions = {
 function config(path: string): Record<string, unknown> {
   if (!existsSync(path)) return {};
   try {
-    const json = stripJsonc(readFileSync(path, "utf8"));
-    return plainObject(JSON.parse(json));
+    return plainObject(parseJsonc(readFileSync(path, "utf8")));
   } catch { return {}; /* optional malformed configuration */ }
 }
 

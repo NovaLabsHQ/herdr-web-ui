@@ -178,10 +178,12 @@ describe("slash commands follow the pane's process", () => {
   }, 30_000);
 
   it.each(["pi", "claude", null])("offers omo commands with the reported label %j", async (agent) => {
-    const commands = await names(await waiting("omo", agent));
+    const listed = await rows(await waiting("omo", agent));
+    const commands = listed.map((command) => command.name);
     expect(commands).toContain("favorite-models");
     expect(commands).toContain("compact");
-    expect(commands).not.toContain("tree");
+    // /tree opens a browser only the terminal draws: listed as a terminal command
+    expect(listed.find((command) => command.name === "tree")?.visibility).toBe("terminal");
     expect(commands).not.toContain("config");
   }, 30_000);
 

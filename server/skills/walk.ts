@@ -1,5 +1,6 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { parse } from "jsonc-parser";
 import { SkillIgnore } from "../skill-ignore.ts";
 import type { SlashCommand } from "../../shared/protocol.ts";
 
@@ -192,11 +193,13 @@ export function plainObject(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 }
 
-/** JSONC as JSON: comments and trailing commas removed outside strings (URLs and escaped quotes kept). */
-export function stripJsonc(text: string): string {
-  return text
-    .replace(/"(?:\\.|[^"\\])*"|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g, (part) => part.startsWith('"') ? part : "")
-    .replace(/("(?:\\.|[^"\\])*")|,\s*(?=[}\]])/g, (_part, quoted: string | undefined) => quoted ?? "");
+/** The pinned OmO loader removes one leading BOM, then parses JSONC with comments and trailing commas. */
+export function parseJsonc(text: string): unknown {
+  const contents = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const errors: { error: number; length: number; offset: number }[] = [];
+  const value = parse(contents, errors, { allowTrailingComma: true, disallowComments: false });
+  if (errors.length > 0) throw new SyntaxError("Invalid JSONC");
+  return value;
 }
 
 export function customCommands(root: string, source: SlashCommand["source"]): SlashCommand[] {  if (!existsSync(root)) return [];
