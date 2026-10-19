@@ -1,7 +1,8 @@
 # Native app plan
 
-Status: Phase 1 step 2 built and checked in a simulator (2026-10-19). Branch `feat/native-app`.
-To run it, see [The app (app/)](#the-app-app).
+Status: Phase 1 step 2 built for iOS (checked in a simulator) and Android (checked in an emulator),
+2026-10-19. To run them, see [The app (app/)](#the-app-app) and
+[The Android app](#the-android-app).
 
 herdr-web-ui ships as a store app for iOS first, Android later. The goal is reach: the app is
 found in the App Store and installs in one tap, where the web app needs "Add to Home Screen". It
@@ -77,7 +78,8 @@ account. Android (FCM) gets a second route in the same Worker later.
 
 - Live Activity for a running agent, home-screen widgets (both need Swift, and pushes through
   the same relay).
-- Android build and the FCM route.
+- The FCM route for Android pushes. The Android app itself exists already (see
+  [The Android app](#the-android-app)): the maintainer tests on a Galaxy, not an iPhone.
 - Speed: measure what is slow before changing anything; bundling the UI in the app is off the
   table while the PC serves it.
 
@@ -211,12 +213,71 @@ Still open:
   on the same `http` address took 100 ms. The cause is not App Transport Security
   (`NSAllowsArbitraryLoads` changed nothing) and not WebKit's https-first upgrade (turning it
   off changed nothing either). It happens whether the PC opens at launch or from the connect
-  screen. The connect screen suggests https meanwhile.
+  screen. The connect screen suggests https meanwhile, on iOS only: Android has no such delay.
 - Each Change PC leaves one blank web view behind: the old page is unloaded, so nothing stays
   connected to the PC, but Capacitor's bridge keeps the view itself.
 - An address that failed still joins the list of PCs.
 - Not tried: QR scanning (needs a camera), keyboard and IME in the app, a physical iPhone,
   Release signing.
+
+## The Android app
+
+The same `app/` pages and client run in Capacitor's Android shell (`app/android`). The native
+pieces are the Java twins of the iOS ones, in `app/android/app/src/main/java/dev/herdr/app`:
+
+- `MainActivity` builds Capacitor's config at runtime when a PC is chosen. It sets
+  `setServerUrl` to the PC, `setAllowNavigation` to its host and `setErrorPath("error.html")`.
+  Opening or leaving a PC starts the activity again, so the next page is a first load and the
+  old WebView goes with the old activity.
+- `onPause` flushes WebView cookies. Without it, a pairing made a moment before the app was
+  swiped away was lost: the next start asked for pairing again.
+- `HerdrShellPlugin` and `PCStore` (SharedPreferences) mirror the iOS plugin and store. As on
+  iOS, a pairing link stays in memory until a PC page loads.
+- Capacitor injects its bridge only into the PC's origin, so `error.html`, served from the app
+  alone, gets none. `MainActivity` hands that page a small `HerdrErrorPage` JavaScript interface
+  for Try again and Change PC. For the same reason `error.html` carries its own style and
+  script, which `app/scripts/build-web.ts` inlines.
+- The manifest allows cleartext http (a tailnet or LAN IP). `minSdkVersion` is 26 (Android 8),
+  which the QR scanner's library needs.
+- `build-web.ts` leaves out the client build's `.gz` and `.br` sidecars. The app reads files
+  itself, and Android's asset merger takes `x.js` and `x.js.gz` for one asset.
+
+Build and install, on a PC with the Android SDK and JDK 21:
+
+```bash
+bun install && cd app && bun install
+bun run build:web && bunx cap sync android
+cd android && ANDROID_HOME=~/Android/Sdk ./gradlew assembleDebug
+# app/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+To put the APK on a phone in the tailnet, use `tailscale file cp app-debug.apk <phone>:`, then
+open it from the phone's Tailscale app. With USB, `adb install -r app-debug.apk` works too. A
+debug APK asks to allow installs from that source.
+
+What was checked on 2026-10-19, on an Android 16 (API 36) emulator against a server on an
+isolated herdr session. Taps and typing were real touches through `adb shell input`; the pages
+were read through the WebView's DevTools socket (`webview_devtools_remote_<pid>`):
+
+- The first start shows the connect screen. Typing the server's address and tapping Open loads
+  the client with Capacitor's bridge (`getPlatform()` is `android`).
+- With the gate closed, the pairing screen shows Change PC. A pairing link typed into the
+  connect screen paired the app. After Home, a force stop and a new start, the client opened
+  without asking again.
+- Settings → Phone & devices shows Change PC; tapping it returns to the connect screen with the
+  PC kept.
+- Try the demo opens the bundled demo; all 14 of its requests stayed on `https://localhost`.
+- A closed port shows `error.html` naming the PC. Try again after the port opened requested
+  `/?pair=123456`, and opening the PC again afterwards requested `/`.
+- No http delay on Android. The client's first script ran 10-60 ms after its HTML arrived, over
+  `http` (first script at 322-584 ms) and `https` (463-874 ms) alike. Most of that time is the
+  emulator's network.
+
+Still open on Android:
+
+- The status bar is a white strip above the dark app.
+- `error.html` shows no reason, as Android's error callback gives Capacitor's listeners none.
+- QR scanning and IME were not tried in the emulator; a physical phone should check them.
 
 ## Risks and open questions
 
