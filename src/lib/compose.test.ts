@@ -5,6 +5,10 @@ import { agentDisplayLabel, composerDelivery, composerMessage, composerSendShown
 import { briefDescription, COMMAND_GROUPS, commandGroup, commandsForTrigger, slashCommandReplacement, terminalCommand, terminalCommandActions, typedTerminalCommand } from "./compose.ts";
 import type { SlashCommand } from "../../shared/protocol.ts";
 import { activeTrigger, applyCompletion, type ActiveTrigger } from "./mentions.ts";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { paneCommands } from "../../server/commands.ts";
 
 describe("menu rows", () => {
   it("keeps a description's first sentence, without its full stop", () => {
@@ -484,5 +488,30 @@ describe("terminal commands", () => {
   it("offers Open Terminal to every role and Run in Terminal only to one that may send", () => {
     expect(terminalCommandActions("interact")).toEqual(["open", "run"]);
     expect(terminalCommandActions("observe")).toEqual(["open"]);
+  });
+});
+
+describe("the menu over a catalog the server built", () => {
+  // The rows come from the integrated server catalog, serialized as they cross the wire, so the
+  // client is checked against the forms and visibility the scanners really emit, not against
+  // hand-written rows.
+  const slash: ActiveTrigger = { kind: "slash", query: "", start: 0, end: 1 };
+
+  it("lists Claude's terminal screens apart and leaves out what Claude's own menu hides", () => {
+    const home = mkdtempSync(join(tmpdir(), "compose-catalog-"));
+    let rows: SlashCommand[];
+    try { rows = JSON.parse(JSON.stringify(paneCommands("claude", null, home))) as SlashCommand[]; }
+    finally { rmSync(home, { recursive: true, force: true }); }
+    const listed = commandsForTrigger(rows, "claude", slash);
+    const names = new Set(listed.map((row) => row.name));
+    const terminal = new Set(listed.filter((row) => commandGroup(row) === "terminal").map((row) => row.name));
+    for (const name of ["config", "resume", "permissions"]) expect(terminal.has(name)).toBeTrue();
+    expect(names.has("compact") && !terminal.has("compact")).toBeTrue();
+    for (const name of ["agents", "heapdump", "setup-bedrock"]) {
+      expect(rows.some((row) => row.name === name && row.visibility === "agent-hidden")).toBeTrue();
+      expect(names.has(name)).toBeFalse();
+    }
+    expect(typedTerminalCommand(rows, "/config")?.name).toBe("config");
+    expect(typedTerminalCommand(rows, "/heapdump")).toBeNull();
   });
 });

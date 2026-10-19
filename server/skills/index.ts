@@ -48,6 +48,4 @@ const omoFirstByName: AgentCommandSource = {
     return omo.discover(ctx).filter(({ name }) => !names.has(name) && Boolean(names.add(name)));
   },
 };
-/** Claude: a skill or custom command named like a builtin is what `/name` runs (Claude Code's skills docs). */
-const claudeSkillsWin: AgentCommandSource = { ...claude, skillsOverrideBuiltins: true };
-export const AGENT_SOURCES: Record<string, AgentCommandSource> = { omo: omoFirstByName, claude: claudeSkillsWin, codex, pi, omp, gjc, opencode, devin, grok, hermes, agy };
+export const AGENT_SOURCES: Record<string, AgentCommandSource> = { omo: omoFirstByName, claude, codex, pi, omp, gjc, opencode, devin, grok, hermes, agy };
