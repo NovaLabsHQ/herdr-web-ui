@@ -3,6 +3,9 @@
 // there from this page would cost every launch about 1.5 s (docs/native-app.md, Spike results).
 import { parseAddress, shell } from "./shell.js";
 
+// only iOS opens a plain http PC slower (docs/native-app.md, The app); Android shows no such delay
+if (window.Capacitor?.getPlatform?.() !== "ios") document.querySelector(".hint")?.remove();
+
 const form = document.getElementById("connect");
 const input = document.getElementById("address");
 const error = document.getElementById("error");
