@@ -1,4 +1,4 @@
-package dev.herdr.app;
+package sh.ovis.app;
 
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;

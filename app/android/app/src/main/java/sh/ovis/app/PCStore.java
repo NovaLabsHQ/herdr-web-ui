@@ -1,4 +1,4 @@
-package dev.herdr.app;
+package sh.ovis.app;
 
 import android.content.Context;
 import android.content.SharedPreferences;

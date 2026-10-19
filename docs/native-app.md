@@ -163,8 +163,8 @@ What is there:
     asks for pairing would otherwise leave the app no way out).
   - The app counts as installed, so Install app is not offered.
 - The app is called Ovis (Latin for sheep, the herd herdr tends). Other apps in both stores are
-  already named Ovis, so the store listing can say "Ovis for herdr". The bundle ID
-  `dev.herdr.app` is still a placeholder.
+  already named Ovis, so the store listing can say "Ovis for herdr". The project owns `ovis.sh`,
+  so the bundle ID and Android application ID are `sh.ovis.app`.
 - The icon is a ram's head in two blue curls on a plain white tile
   (`app/assets/ovis-icon.svg`). The PNGs beside it are the sources for both platforms' icons and
   splash screens. After changing them, run
@@ -229,7 +229,7 @@ Still open:
 ## The Android app
 
 The same `app/` pages and client run in Capacitor's Android shell (`app/android`). The native
-pieces are the Java twins of the iOS ones, in `app/android/app/src/main/java/dev/herdr/app`:
+pieces are the Java twins of the iOS ones, in `app/android/app/src/main/java/sh/ovis/app`:
 
 - `MainActivity` builds Capacitor's config at runtime when a PC is chosen. It sets
   `setServerUrl` to the PC, `setAllowNavigation` to its host and `setErrorPath("error.html")`.
@@ -301,6 +301,6 @@ Still open on Android:
   Transport Security exception that review must accept. `https` through `tailscale serve` needs
   none.
 - Several PCs: the app should list them, as the remote PCs feature does in the browser.
-- Not decided: the relay's domain and the bundle ID. The app's name is Ovis.
+- Not decided: the relay's domain. The app is Ovis, with the ID `sh.ovis.app`.
 - The macbook is shared with other sessions (a ChatGPT CUA was running on 2026-10-18): check it
   is free before booting a simulator there.

@@ -1,4 +1,4 @@
-package dev.herdr.app;
+package sh.ovis.app;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
