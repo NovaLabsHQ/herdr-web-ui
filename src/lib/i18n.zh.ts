@@ -764,6 +764,8 @@ export const ZH: Record<string, string> = {
   "A program in a pane that copies (vim, tmux, Claude Code) puts its text on this device's clipboard, as a copy you made yourself would. Turn it off if a pane runs output you do not trust: it could replace what you paste next.": "窗格中执行复制的程序（vim、tmux、Claude Code）会像你自己复制一样把文本写入此设备的剪贴板。如果窗格运行你不信任的输出，请关闭它：它可能替换你下次粘贴的内容。",
   "Use alongside herdr's own window": "与终端里的 herdr 一起使用",
   "Turn this on if this PC also shows herdr in a terminal window. A second after you switch to another window, this tab only watches the pane, so herdr's window keeps the pane at its own size instead of this window's. Click the tab to type again. While it watches, the pane is drawn at herdr's size and may not fill this window.": "如果这台电脑的终端窗口里也开着 herdr，请打开此项。切换到其他窗口一秒后，此标签页只查看窗格，herdr 窗口会按自己的尺寸而不是此窗口的尺寸保留窗格。点击标签页即可再次输入。查看期间窗格按 herdr 的尺寸绘制，可能不会填满此窗口。",
+  "Follow herdr's focus": "跟随 herdr 的焦点",
+  "When herdr moves to another pane, by a click in its window, a herdr command or a script, this device opens that pane too. Only on the PC open here, and only on this device.": "herdr 切换到另一个窗格时（在 herdr 窗口中点击、herdr 命令或脚本），此设备也会打开该窗格。仅适用于这里打开的 PC，且仅适用于此设备。",
   "What should {agent} do in {folder}?": "要让 {agent} 在 {folder} 做什么？",
   "No conversation yet — say something below": "暂无对话。在下方说点什么吧",
   "terminal ended": "终端已结束",

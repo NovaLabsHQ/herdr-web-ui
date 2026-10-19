@@ -288,6 +288,8 @@ export function createStatusHub<Lease>({ options, devices, clients, present, pen
     onFocus: (paneId) => {
       // The split canvas follows herdr's focused pane (also the sole visible pane while zoomed).
       broadcastAll({ type: "session-changed" });
+      // a browser set to follow herdr's focus opens the pane (#311)
+      broadcastAll({ type: "pane-focused", pane_id: paneId });
       if (!completions.seen(paneId)) return;
       pending.status(paneId, "idle"); drainPending(paneId);
       broadcastAll(paneStatus(paneId, "idle"));

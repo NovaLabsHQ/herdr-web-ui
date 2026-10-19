@@ -1217,6 +1217,13 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - Zoom uses herdr's zoom flag and focused pane. The other panes keep their mounted terminals
   hidden, preserving attachments and drafts; unzoom restores their rectangles. Web selection
   stays local to this browser and does not change herdr's focus in another client.
+- The other way is opt-in, per device (Settings → Terminal → Follow herdr's focus, off by
+  default): when herdr's own focus moves (a click in its window, `herdr tab focus`, a script's
+  `herdr tab create --focus`), the server's `pane-focused` frame opens that pane here too, only
+  on the PC open here and never for a pane already in front (the selected one or the other split
+  half). It is an automatic pick: no keyboard is raised and no Back entry is added. Off, a browser
+  is a tmux client of a grouped session (its own current window); on, it shares the session's
+  current window as herdr's own window does. The coding-agent apps have no outside focus to follow.
 - Drag the actual split boundary to resize, with an 8px hit region and native 0.1–0.9 ratio
   limits. Its keyboard separator accepts arrow keys. `layout.set_split_ratio` receives the
   binary path (false first, true second), at most 30 times a second, one request in flight;
@@ -1913,7 +1920,8 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   **Composer**: Enter sends, send queued messages automatically, and on a touch screen the suggestion
   chip (off by default); then **Quick replies**; then **File viewer**: wrap long
   lines, Markdown width, Diff layout), **Terminal** (font size, font family, wheel
-  speed, input mode, Key bar), **Alerts**, **Voice input**, **Subscription usage**,
+  speed, input mode, Key bar, Clipboard from a pane, Use alongside herdr's own window, Follow
+  herdr's focus), **Alerts**, **Voice input**, **Subscription usage**,
   **Shortcuts** (the platform-resolved global bindings), **Phone & devices** (the phone address,
   Keep screen on, Install; then Portal, where the server offers it; then paired devices),
   **Remote PCs**, **About** (Updates, herdr, the repository links). A button that points at

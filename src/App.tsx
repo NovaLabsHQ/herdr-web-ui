@@ -76,6 +76,7 @@ import { useFocusReturn } from "./lib/useFocusTrap.ts";
 import { useRepoDiffViewer } from "./lib/useRepoDiffViewer.ts";
 import { useT } from "./lib/i18n.ts";
 import { markSelection, selectionStill, type SelectionMark } from "./lib/selectionMark.ts";
+import { followsHerdrFocus } from "./lib/followFocus.ts";
 import { useScreenWakeLock } from "./lib/wakeLock.ts";
 import { watchDrawerSwipe } from "./lib/edgeSwipe.ts";
 import { Droplet } from "./components/Droplet.tsx";
@@ -544,6 +545,8 @@ export function App() {
   alertInAppRef.current = settings.alertInApp;
   const alertSoundRef = useRef(settings.alertSound);
   alertSoundRef.current = settings.alertSound;
+  const followFocusRef = useRef(settings.followHerdrFocus);
+  followFocusRef.current = settings.followHerdrFocus;
   const refetchTimer = useRef<number | null>(null);
   const snapshotRef = useRef<typeof snapshot>(null);
   snapshotRef.current = snapshot;
@@ -722,6 +725,18 @@ export function App() {
       if (message.type === "pane-exited" && alertsOnRef.current && !pushOnRef.current && alertsRef.current.done !== "off") {
         const pane = machine.snapshot?.panes.find((p) => p.pane_id === message.pane_id);
         if (pane) showPaneEndedNotification(message.pane_id, `${machine.name} · ${alertPaneTitle(pane)}`, () => takeNotificationTargetRef.current({ machine_id: machine.id, pane_id: message.pane_id, view: "chat", workspace_id: pane.workspace_id }), machine.id, pane.workspace_id);
+      }
+      // herdr's own window moved to another pane: this device follows it when asked to. As an
+      // automatic pick it raises no keyboard and adds no Back entry; a pane too new for the roster
+      // is confirmed with its PC first, as a pane made here is (the selection effect below)
+      if (message.type === "pane-focused" && followsHerdrFocus({
+        enabled: followFocusRef.current, machineId: machine.id, paneId: message.pane_id, selection: selectionRef.current,
+        splitOther: splitShownRef.current ? splitRef.current?.other ?? null : null, linkPending: pendingLink.current !== null,
+      })) {
+        selectionHint.current = null;
+        setSelectedPaneId(message.pane_id);
+        setNotificationViewTarget(null);
+        setAutoSelected(true);
       }
       if (message.type === "session-changed" || message.type === "pane-exited") scheduleRefetch();
     };

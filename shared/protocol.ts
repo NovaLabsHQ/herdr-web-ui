@@ -1320,6 +1320,10 @@ export type ServerMessage =
   | { type: "pane-exited"; pane_id: string }
   /** session structure changed (pane created/closed): refetch /api/session */
   | { type: "session-changed" }
+  /** herdr's own focus moved to this pane (its `pane.focused`, also sent for a tab or workspace brought
+   * to the front), whoever moved it: its TUI, its CLI or a script. A browser follows it only when
+   * asked to (Settings → Terminal); an older bridge never sends it */
+  | { type: "pane-focused"; pane_id: string }
   /** a watched pane's screen as herdr draws it for the watch's grid: whole screens and changes, written as they come; never acknowledged */
   | { type: "watch-data"; pane_id: string; data: string }
   /** the watch ended (pane gone, herdr closed it, or this herdr has no read-only view); the client keeps its last screen */
