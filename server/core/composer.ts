@@ -8,7 +8,8 @@ import type { HerdrPane } from "../../shared/protocol.ts";
 import { secretPrompt } from "../../shared/secret-prompt.ts";
 import { agentPrompt, HerdrError, paneGet, paneRead, paneScrollInfo, paneSendKeys, paneSendText } from "../herdr/client.ts";
 import { mirrorInput } from "../mirror-input.ts";
-import { paneContext } from "../pane-context.ts";
+import { paneAgentOf, resolveAgent } from "../pane-context.ts";
+import { paneProcessRoots } from "../conversation.ts";
 import { CLAUDE_CLEAR_INPUT_KEYS, claudeClearableDraft, claudeInputBoxContent, claudeInputDraft, claudeInputEmpty, claudeRestoredDraft, codexQuestionsCollapsed, heldCandidate, hermesInputDraft, lastChatSubmitted, noteSubmitted, parseInteractivePrompt, viewportShowsLive } from "../prompt.ts";
 import { registry } from "../dialogs/registry.ts";
 import { type PendingIdentity, PendingInputError } from "../pending-input.ts";
@@ -58,13 +59,19 @@ export async function blockedOnlyByCodexQueue(paneId: string): Promise<boolean> 
     if (error instanceof HerdrError && error.code === "pane_not_found") return undefined;
     throw error;
   });
-  if ((pane?.agent ?? pane?.agent_session?.agent) !== "codex") return false;
+  if (!(await paneIs(pane, "codex"))) return false;
   // A collapsed queue in scrollback must not bypass an approval on the live screen.
   return codexQuestionsCollapsed((await paneRead({ paneId, source: "detection", format: "text" })).text);
 }
 
+/** Is this pane's agent `kind`? The omo probe is spent only where the label already says so. */
+async function paneIs(pane: HerdrPane | undefined, kind: string): Promise<boolean> {
+  if (!pane || resolveAgent(pane).agent !== kind) return false;
+  return resolveAgent(pane, await paneProcessRoots(pane.pane_id, kind)).agent === kind;
+}
+
 export const pendingIdentity = (pane: HerdrPane): PendingIdentity => ({
-  agent: pane.agent ?? pane.agent_session?.agent ?? null, terminalId: pane.terminal_id,
+  agent: resolveAgent(pane).agent, terminalId: pane.terminal_id,
   session: pane.agent_session ? `${pane.agent_session.kind}:${pane.agent_session.source}:${pane.agent_session.value}` : null,
 });
 
@@ -222,7 +229,7 @@ export function createSubmitText({ options, lastTyped, attachments, terminalAtta
             throw new HerdrError("pending_target_changed", "The refused message's Claude terminal or session changed; nothing was sent");
           }
         }
-        if ((pane?.agent ?? pane?.agent_session?.agent) === "claude" && !sendAnyway) {
+        if (await paneIs(pane, "claude") && !sendAnyway) {
           if (clearDraft === undefined) {
             try {
               await freeClaudeBox(paneId, pane?.agent_status === "working", authorize, arrivedAt + (options.submitDeadlineMs ?? SUBMIT_DEADLINE_MS));
@@ -287,7 +294,7 @@ export function createSubmitText({ options, lastTyped, attachments, terminalAtta
           if (clearDraft !== undefined && !claudeInputEmpty(...reads)) throw new InputDraftError(null);
         }
         // a clear request or send anyway reached a Hermes pane only to be refused above: both are Claude's
-        if ((pane?.agent ?? pane?.agent_session?.agent) === "hermes") {
+        if (await paneIs(pane, "hermes")) {
           await freeHermesInput(paneId, identity ?? undefined);
           inTime();
         }
@@ -306,7 +313,7 @@ export function createSubmitText({ options, lastTyped, attachments, terminalAtta
       // a mirrored pane's browser never learned the program's paste mode, so `payload` came as bare
       // lines: several of them are shaped here as the same block typed into the mirror is. herdr is
       // asked only for such a block, so a one-line message never waits on it.
-      const shaped = await mirrorInput(closeMention(payload), async () => await terminalAttach() ? null : (await paneContext(paneId)).agent);
+      const shaped = await mirrorInput(closeMention(payload), async () => await terminalAttach() ? null : await paneAgentOf(paneId));
       inTime();
       await paneSendText(paneId, shaped);
       // fixed wait: a TUI busy with the paste takes an Enter in the same chunk for a newline (SUBMIT_DELAY_MS)

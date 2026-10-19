@@ -2,7 +2,7 @@ import { handleWorkspaceRequest } from "./workspace-routes.ts";
 import { connectionData, createCore, type SocketData } from "./core/index.ts";
 import { ClientConnectionLog } from "./client-connection-log.ts";
 import { handlePaneRequest } from "./pane-routes.ts";
-import { paneContext } from "./pane-context.ts";
+import { paneContext, resolveAgent } from "./pane-context.ts";
 import { randomBytes } from "node:crypto";
 import { readHerdrProfiles, type HerdrMachineProfile } from "./herdr-profiles.ts";
 import { accessSync, constants, readFileSync } from "node:fs";
@@ -113,7 +113,7 @@ const AGENT_LABELS: Record<string, string> = {
 async function claudeTempFolder(paneId: string): Promise<string | null> {
   try {
     const pane = await paneGet(paneId);
-    if ((pane.agent ?? pane.agent_session?.agent) !== "claude") return null;
+    if (resolveAgent(pane).agent !== "claude") return null;
     const session = await claudePaneSession(pane);
     return session === null ? null : await claudeSessionTempDir(session.path);
   } catch { return null; /* herdr busy or the pane gone: the path stays not found */ }

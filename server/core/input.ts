@@ -5,7 +5,7 @@
  */
 import { type Client, connectionOf, send } from "./connections.ts";
 import { ATTACH_HELD_MESSAGE } from "./terminal-process.ts";
-import { paneContext } from "../pane-context.ts";
+import { paneAgentOf } from "../pane-context.ts";
 import type { TerminalSighting } from "./terminals.ts";
 import type { ClientMessage } from "../../shared/protocol.ts";
 import { isMouseReport, typingGuards } from "../input-guard.ts";
@@ -106,7 +106,7 @@ export function createInputLane({ TYPED_SETTLE_MS, KEY_SETTLE_MS, clients, sight
           // a herdr that attaches: typing reaches an attached pane only
           if (await terminalAttach()) { inputFailed(); return; }
           // a pasted block asks herdr what the pane runs, so it is shaped before the checks below
-          const shaped = await mirrorInput(text, async () => (await paneContext(message.pane_id)).agent);
+          const shaped = await mirrorInput(text, () => paneAgentOf(message.pane_id));
           if (!typingGuards.herdrTyping(sighting.facts())) { inputFailed(); return; }
           // nothing typed outlives its connection
           if (!clients.has(client)) return;
