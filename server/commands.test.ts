@@ -214,8 +214,8 @@ describe("skills and plugins", () => {
     const previousPiAgentDir = process.env["PI_CODING_AGENT_DIR"];
     process.env["PI_CODING_AGENT_DIR"] = join(home, ".pi", "agent");
     try {
+      // reached through ~/.pi/agent/skills and ~/.agents/skills, the one file is one row
       expect(paneCommands("pi", null, home).filter((command) => command.source !== "builtin")).toMatchObject([
-        { name: "skill:linked", description: "Shared skill", source: "skill", origin: "user" },
         { name: "skill:linked", description: "Shared skill", source: "skill", origin: "user" },
       ]);
     } finally {
@@ -439,10 +439,11 @@ describe("pi's slash commands", () => {
   it("offers pi's own built-ins, in pi's words", () => {
     const commands = paneCommands("pi", null, temp("pi-empty-home-"));
     expect(commands.map((command) => command.name)).toContain("compact");
-    // /tree is offered by pi itself but not by the chat, the way omp's list omits it: the command
-    // opens pi's tree browser, which the chat reads as nothing at all — no card, pane looks idle —
-    // so offering it invites a reader into a state only the terminal lens can leave
-    expect(commands.map((command) => command.name)).not.toContain("tree");
+    expect(commands).toContainEqual(expect.objectContaining({
+      name: "tree",
+      visibility: "terminal",
+      forms: [{ match: "bare", interaction: "terminal" }],
+    }));
     // its own verbs, not the omp/codex wording shared by the rest
     expect(commands).toContainEqual(expect.objectContaining({ name: "quit", description: "Quit pi", source: "builtin" }));
     expect(commands.map((command) => command.name)).not.toContain("sessions");
