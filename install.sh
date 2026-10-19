@@ -9,13 +9,15 @@
 # 2. Installs herdr web ui as a herdr plugin, so it starts with herdr and Settings → Updates keeps it
 #    current, and starts it now when herdr is running.
 # 3. When Tailscale runs on this PC, serves the app to your tailnet (`tailscale serve`, on the first
-#    free HTTPS port) and prints the address a phone opens as a QR code (scripts/plugin.ts phone).
+#    free HTTPS port, or only the one HERDR_WEB_TAILSCALE_HTTPS_PORT names) and prints the address
+#    a phone opens as a QR code (scripts/plugin.ts phone).
 # 4. On a first install, mentions a GitHub star once. When the gh CLI is signed in and has not
 #    starred the repository, it asks at the terminal, for 20 seconds, and stars only on "y"; it
 #    never stars by itself.
 #
 # Run it again at any time: what is already there is kept, and step 3 is repeated.
 #   HERDR_WEB_UI_REF=<branch or tag>   install that ref instead of the latest release
+#   HERDR_WEB_TAILSCALE_HTTPS_PORT=<port>   serve the app on that HTTPS port only, keeping 443 free
 set -eu
 
 REPO="devswha/herdr-web-ui"

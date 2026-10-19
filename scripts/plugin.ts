@@ -32,7 +32,7 @@ import type { RemoteAccess } from "../shared/protocol.ts";
 import { canBind, FALLBACK_PORTS, freePort, savedPort } from "./plugin-port.ts";
 import { activePluginScript } from "./plugin-runtime.ts";
 import { herdrStateDir } from "./plugin-state.ts";
-import { parseTailscale, parseTailscaleIp, parseTailscaleOwner, readTailscale, tailscaleBinary } from "../server/tailscale.ts";
+import { HTTPS_PORT_VARIABLE, HTTPS_PORTS, httpsPorts, parseTailscale, parseTailscaleIp, parseTailscaleOwner, readTailscale, tailscaleBinary } from "../server/tailscale.ts";
 import { descendantProcesses, windowsArgv, windowsProcessTable } from "../server/windows-processes.ts";
 
 /**
@@ -516,8 +516,9 @@ async function pair(): Promise<number> {
 /**
  * The address a phone opens, as a QR code. When Tailscale runs on this PC but does not yet serve
  * the app, this is the one place that changes it: `tailscale serve` of the app's port on the first
- * free HTTPS port, said out loud with the command that undoes it. Everything else only reads.
- * Run by install.sh (and by hand); neither the server nor startup ever calls it.
+ * free HTTPS port, or only on the one HERDR_WEB_TAILSCALE_HTTPS_PORT names, said out loud with the
+ * command that undoes it. Everything else only reads. Run by install.sh (and by hand); neither the
+ * server nor startup ever calls it.
  */
 async function phone(): Promise<number> {
   const say = (line = "") => process.stdout.write(line + "\n");
@@ -527,9 +528,11 @@ async function phone(): Promise<number> {
     say(`HOST is ${host}, so Tailscale, which serves 127.0.0.1, is left alone. On the phone, open ${link(`http://${host}:${port}`)}.`);
     return 0;
   }
+  const chosen = env[HTTPS_PORT_VARIABLE]?.trim() ?? "";
+  const candidates = httpsPorts(chosen);
   const binary = tailscaleBinary();
   let output = await readTailscale(binary);
-  let access = parseTailscale(output, port);
+  let access = parseTailscale(output, port, candidates);
   if (binary === null || access.state === "missing") {
     say("For your phone: install Tailscale on this PC and on the phone (https://tailscale.com/download),");
     say(`sign in to the same account on both, then run: ${PHONE_AGAIN}`);
@@ -542,8 +545,10 @@ async function phone(): Promise<number> {
   let published = false;
   if (access.serving_url === null) {
     if (access.serve_command === null) {
-      say("Tailscale on this PC already uses every HTTPS port this would take (443, 8443, 7317, 17317). Settings → Phone shows what to do.");
-      return 0;
+      if (chosen === "") say(`Tailscale on this PC already uses every HTTPS port this would take (${HTTPS_PORTS.join(", ")}). Settings → Phone shows what to do.`);
+      else if (candidates.length === 0) say(`${HTTPS_PORT_VARIABLE} is "${chosen}", which is not a port (1-65535). Fix it where you set it (the plugin's env file, or the installer's command), then run: ${PHONE_AGAIN}`);
+      else say(`Tailscale on this PC already uses HTTPS port ${candidates[0]}, which ${HTTPS_PORT_VARIABLE} names, so the app is not published on another one. Free that port or name another, then run: ${PHONE_AGAIN}`);
+      return chosen !== "" && candidates.length === 0 ? 1 : 0;
     }
     say(`Publishing the app to your tailnet: ${access.serve_command}`);
     const [, ...args] = access.serve_command.split(" ");
@@ -557,7 +562,7 @@ async function phone(): Promise<number> {
       return 1;
     }
     output = await readTailscale(binary);
-    access = parseTailscale(output, port);
+    access = parseTailscale(output, port, candidates);
     published = true;
   }
   const url = access.serving_url;

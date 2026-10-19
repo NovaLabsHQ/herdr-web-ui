@@ -159,7 +159,8 @@ tailscale serve --bg --https=443 http://127.0.0.1:7317
 
 Or run the one-line installer (method C) again, which installs nothing when the app is there, or
 `bun scripts/plugin.ts phone` from a source checkout: it runs that command on the first
-free HTTPS port when Tailscale runs and does not serve the app yet, says how to undo it, and prints the
+free HTTPS port (only on `HERDR_WEB_TAILSCALE_HTTPS_PORT` when the user set one, for a user who
+keeps 443 for something else) when Tailscale runs and does not serve the app yet, says how to undo it, and prints the
 address as a QR code. **Settings → Phone & devices** in the app shows this step's state: the address that already works as a QR
 code, or the exact command still to run. Who gets in:
 
