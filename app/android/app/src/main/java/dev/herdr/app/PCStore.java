@@ -2,7 +2,8 @@ package dev.herdr.app;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.net.Uri;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONArray;
@@ -72,13 +73,17 @@ final class PCStore {
         edit.apply();
     }
 
-    /** scheme://host[:port] of an http or https address, or null. */
+    /** scheme://host[:port] of a well-formed http or https address, or null: `http://pc:abc/` is refused, not saved for Capacitor to fail on at the next start. */
     static String origin(String text) {
-        Uri uri = Uri.parse(text);
+        URI uri;
+        try {
+            uri = new URI(text).parseServerAuthority();
+        } catch (URISyntaxException e) {
+            return null;
+        }
         String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase();
         String host = uri.getHost();
         if (scheme == null || !(scheme.equals("http") || scheme.equals("https")) || host == null || host.isEmpty()) return null;
-        String shownHost = host.contains(":") ? "[" + host + "]" : host;
-        return uri.getPort() == -1 ? scheme + "://" + shownHost : scheme + "://" + shownHost + ":" + uri.getPort();
+        return uri.getPort() == -1 ? scheme + "://" + host : scheme + "://" + host + ":" + uri.getPort();
     }
 }

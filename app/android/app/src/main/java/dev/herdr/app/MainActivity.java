@@ -5,11 +5,13 @@ import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.CookieManager;
-import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.CapConfig;
 import com.getcapacitor.WebViewListener;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import java.util.Collections;
 
 /**
  * Capacitor's activity with the chosen PC as the WebView's first page, as HerdrBridgeViewController
@@ -37,8 +39,29 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         if (host != null) {
             // Capacitor injects its bridge only into the PC's origin, so error.html (served from the
-            // app while a PC is open) reaches the app through this instead
-            bridge.getWebView().addJavascriptInterface(new ErrorPage(), "HerdrErrorPage");
+            // app while a PC is open) reaches the app through this listener instead. It answers only
+            // the app's own origin in the main frame: a PC page or a frame it opens gets nothing.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+                String appOrigin = bridge.getScheme() + "://" + bridge.getHost();
+                WebViewCompat.addWebMessageListener(
+                    bridge.getWebView(),
+                    "HerdrErrorPage",
+                    Collections.singleton(appOrigin),
+                    (view, message, sourceOrigin, isMainFrame, replyProxy) -> {
+                        if (!isMainFrame) return;
+                        String asked = message.getData();
+                        if ("last".equals(asked)) {
+                            String last = PCStore.last(this);
+                            replyProxy.postMessage(last == null ? "" : last);
+                        } else if ("retry".equals(asked)) {
+                            reopen();
+                        } else if ("changePc".equals(asked)) {
+                            PCStore.setCurrent(this, null);
+                            reopen();
+                        }
+                    }
+                );
+            }
             bridge.addWebViewListener(
                 new WebViewListener() {
                     @Override
@@ -58,26 +81,6 @@ public class MainActivity extends BridgeActivity {
         // WebView writes cookies to disk on its own schedule: a paired device's sign-in set a moment
         // ago would be lost if the app were swiped away now
         CookieManager.getInstance().flush();
-    }
-
-    /** What error.html asks of the app when Capacitor's bridge is not on it. */
-    private final class ErrorPage {
-        @JavascriptInterface
-        public String last() {
-            String last = PCStore.last(MainActivity.this);
-            return last == null ? "" : last;
-        }
-
-        @JavascriptInterface
-        public void retry() {
-            runOnUiThread(MainActivity.this::reopen);
-        }
-
-        @JavascriptInterface
-        public void changePc() {
-            PCStore.setCurrent(MainActivity.this, null);
-            runOnUiThread(MainActivity.this::reopen);
-        }
     }
 
     /** Starts this activity again, so the next page (a PC, or the connect screen) is a first load. */

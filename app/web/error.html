@@ -19,15 +19,18 @@
   </main>
   <!-- self-contained: on Android, Capacitor serves error.html alone while a PC is open (no shell.js
        or shell.css beside it), so app/scripts/build-web.ts puts shell.css in and the script is inline.
-       There Capacitor's bridge is not on this page either: MainActivity gives it HerdrErrorPage. -->
+       There Capacitor's bridge is not on this page either: MainActivity's HerdrErrorPage listener,
+       open to this origin only, answers instead. -->
   <script type="module">
     const shell = (method, options = {}) => window.Capacitor.nativePromise("HerdrShell", method, options);
     const android = window.HerdrErrorPage;
-    const state = android ? { last: android.last(), failure: "" } : await shell("getState");
+    const state = android
+      ? await new Promise((resolve) => { android.onmessage = (event) => resolve({ last: event.data, failure: "" }); android.postMessage("last"); })
+      : await shell("getState");
     if (state.last) document.getElementById("what").textContent = `The app could not open ${state.last}.`;
     document.getElementById("reason").textContent = state.failure ?? "";
-    document.getElementById("retry").addEventListener("click", () => void (android ? android.retry() : shell("retry")));
-    document.getElementById("change").addEventListener("click", () => void (android ? android.changePc() : shell("disconnect")));
+    document.getElementById("retry").addEventListener("click", () => void (android ? android.postMessage("retry") : shell("retry")));
+    document.getElementById("change").addEventListener("click", () => void (android ? android.postMessage("changePc") : shell("disconnect")));
   </script>
 </body>
 </html>
