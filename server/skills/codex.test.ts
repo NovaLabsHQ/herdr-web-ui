@@ -88,7 +88,7 @@ describe("Codex skill discovery", () => {
     skill(join(store, "plugins", "cache", "other-market", "enabled", "1.0", "skills"), "other-market-skill");
     skill(join(store, "plugins", "cache", "unconfigured", "1.0", "skills"), "unconfigured-skill");
     put(join(store, "config.toml"), '[plugins."enabled@market"]\nenabled = true\n[plugins."disabled@market"]\nenabled = false\n');
-    expect(paneCommands("codex", null, home).filter((command) => command.origin === "plugin")).toEqual([
+    expect(paneCommands("codex", null, home).filter((command) => command.origin === "plugin")).toMatchObject([
       { name: "plugin-skill", description: "First sentence. Second sentence.", source: "skill", trigger: "$", origin: "plugin" },
     ]);
   });

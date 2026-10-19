@@ -162,7 +162,7 @@ describe("omp command discovery", () => {
     put(join(f.home, ".codex/prompts/codex.md"), "---\nname: renamed\n---\nCodex prompt");
     put(join(f.cwd, ".github/prompts/github.prompt.md"), "GitHub prompt");
     const rows = f.commands();
-    expect(rows.filter((row) => row.name === "deploy")).toEqual([{ name: "deploy", description: "Deploy the app. Then check its health.", source: "project" }]);
+    expect(rows.filter((row) => row.name === "deploy")).toMatchObject([{ name: "deploy", description: "Deploy the app. Then check its health.", source: "project" }]);
     expect(rows.find((row) => row.name === "review-docs")?.description).toBe("Review documentation. Explain the changes. (user)");
     expect(rows.find((row) => row.name === "deep")?.description).toBe("Deep prompt (user:nested)");
     expect(rows.some((row) => row.name === "team")).toBeTrue();

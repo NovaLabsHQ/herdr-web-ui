@@ -53,7 +53,7 @@ describe("Hermes commands", () => {
     f.skill(join(f.repo, ".hermes", "skills"), "project", { description: "Project." });
     f.skill(join(f.repo, ".agents", "skills"), "agent-project");
     f.skill(join(f.cwd, ".hermes", "skills"), "not-root");
-    expect(f.discovered()).toEqual([
+    expect(f.discovered()).toMatchObject([
       { name: "agent-project", description: "Probe body.", source: "skill", origin: "project" },
       { name: "my-skill", description: "Personal.", source: "skill", origin: "user" },
       { name: "project", description: "Project.", source: "skill", origin: "project" },
@@ -132,7 +132,7 @@ describe("Hermes commands", () => {
     f.skill(root, "parent/scripts/support", { name: "support" });
     f.skill(root, "parent/child", { name: "child" });
     put(join(root, "loose.md"), "Not a skill.");
-    expect(f.discovered()).toEqual([
+    expect(f.discovered()).toMatchObject([
       { name: "child", description: "Probe body.", source: "skill", origin: "user" },
       { name: "git-helper", description: "First.", source: "skill", origin: "user" },
       { name: "parent", description: "Probe body.", source: "skill", origin: "user" },
@@ -158,7 +158,7 @@ describe("Hermes commands", () => {
     put(join(f.profile, "skill-bundles", "bad.yaml"), "skills: [\n");
     put(join(f.profile, "skill-bundles", "empty.yaml"), "skills: []\n");
     put(join(f.profile, "skill-bundles", "scalar.yaml"), "skills: release\n");
-    expect(f.discovered()).toEqual([
+    expect(f.discovered()).toMatchObject([
       { name: "bundle-only", description: "Bundle description.", source: "skill", origin: "user" },
       { name: "fallback", description: "Load 1 skills as a bundle", source: "skill", origin: "user" },
       { name: "fastcheck", description: "Quick check.", source: "user" },
@@ -173,7 +173,7 @@ describe("Hermes commands", () => {
     f.skill(join(f.home, ".agents", "skills"), "not-external");
     f.skill(join(f.home, ".hermes", "plugins", "enabled", "skills"), "plugin");
     put(join(f.home, ".hermes", "config.yaml"), "skills: [\n");
-    expect(paneCommands("hermes", f.cwd, f.home).filter((command) => command.source === "skill")).toEqual([
+    expect(paneCommands("hermes", f.cwd, f.home).filter((command) => command.source === "skill")).toMatchObject([
       { name: "probe-skill", description: "Probe body.", source: "skill", origin: "user" },
     ]);
   });

@@ -594,6 +594,23 @@ export function opencodeImage(path: string, sessionId: string, ref: string): { m
   });
 }
 
+/** The OpenCode version that wrote this session (its `version` column, 2.x or 1.x store); null when unknown. */
+export function opencodeSessionVersion(path: string, sessionId: string): string | null {
+  if (!SESSION_ID.test(sessionId)) return null;
+  try {
+    return withStore(path, (db) => {
+      const flavor = storeFlavor(db);
+      if (flavor === "unknown") return null;
+      const table = flavor === "v1" ? "session" : "session_v2";
+      const row = db.query<{ version: unknown }, [string]>(`SELECT version FROM ${table} WHERE id = ?`).get(sessionId);
+      return typeof row?.version === "string" && row.version !== "" ? row.version : null;
+    });
+  } catch (error) {
+    if (unusable(error) || busy(error)) return null;
+    throw error;
+  }
+}
+
 /* -------------------------------------------------------------------------------------------------
  * OpenCode 1.x: session / message / part
  *

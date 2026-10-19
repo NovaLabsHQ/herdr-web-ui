@@ -53,7 +53,7 @@ test("project replaces user within one namespace without duplicate rows", () => 
   const f = fixture();
   f.put(join(f.home, ".config/devin/skills/shared/SKILL.md"));
   f.put(join(f.cwd, ".devin/skills/shared/SKILL.md"));
-  expect(f.skills()).toEqual([{ name: "shared", description: "Test skill. More information.", source: "skill", origin: "project" }]);
+  expect(f.skills()).toMatchObject([{ name: "shared", description: "Test skill. More information.", source: "skill", origin: "project" }]);
 });
 
 test("hides model-only and empty trigger lists without hiding default or user triggers", () => {
@@ -117,7 +117,7 @@ test("loads plugin manifests, relocated skills and disabled skill roots without 
   f.put(join(plugins, "disabled/.claude-plugin/plugin.json"), '{"name":"off","skills":[]}');
   f.put(join(plugins, "disabled/skills/hidden/SKILL.md"));
   symlinkSync(plugins, join(plugins, "cycle"));
-  expect(f.skills([`XDG_DATA_HOME=${data}`])).toEqual([
+  expect(f.skills([`XDG_DATA_HOME=${data}`])).toMatchObject([
     { name: "tools:review", description: "Test skill. More information.", source: "skill", origin: "plugin" },
   ]);
 });

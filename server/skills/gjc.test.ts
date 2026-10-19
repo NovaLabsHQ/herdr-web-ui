@@ -38,8 +38,8 @@ describe("gjc discovery", () => {
     f.put(join(f.agentDir, "commands", "omg:setup.md"), "---\ndescription: Inspect installation\n---\nRun\n");
     f.config("skills:\n  trustProjectSkills: false\n");
     const commands = f.commands();
-    expect(commands).toContainEqual({ name: "skill:chosen", description: "First sentence. More detail for the tooltip.", source: "skill", origin: "user" });
-    expect(commands).toContainEqual({ name: "omg:setup", description: "Inspect installation", source: "user" });
+    expect(commands).toContainEqual(expect.objectContaining({ name: "skill:chosen", description: "First sentence. More detail for the tooltip.", source: "skill", origin: "user" }));
+    expect(commands).toContainEqual(expect.objectContaining({ name: "omg:setup", description: "Inspect installation", source: "user" }));
     expect(commands.map((command) => command.name)).not.toContain("skill:wrong-home");
     expect(commands.map((command) => command.name)).not.toContain("skill:untrusted");
   });
@@ -54,7 +54,7 @@ describe("gjc discovery", () => {
     f.put(join(f.cwd, ".gjc", "commands", "review.md"), "---\ndescription: Near\n---\n");
     f.put(join(f.agentDir, "commands", "review.md"), "---\ndescription: User\n---\n");
     const commands = f.commands();
-    expect(commands.filter((command) => command.name === "skill:duplicate")).toEqual([
+    expect(commands.filter((command) => command.name === "skill:duplicate")).toMatchObject([
       { name: "skill:duplicate", description: "First sentence. More detail for the tooltip.", source: "skill", origin: "project" },
     ]);
     expect(commands.find((command) => command.name === "review")).toMatchObject({ description: "Near", source: "project" });

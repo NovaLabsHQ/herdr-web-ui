@@ -38,7 +38,7 @@ describe("Claude discovery", () => {
     put(join(home, ".claude/commands/shared.md"), "Legacy command");
     put(join(repo, ".claude/commands/team/check.md"), "Check");
     const commands = paneCommands("claude", cwd, home).filter(({ source }) => source !== "builtin");
-    expect(commands).toEqual([
+    expect(commands).toMatchObject([
       { name: "parent", description: "Probe skill", source: "skill", origin: "project" },
       { name: "renamed", description: "Probe skill", source: "skill", origin: "project" },
       { name: "shared", description: "Personal", source: "skill", origin: "user" },
@@ -59,7 +59,7 @@ describe("Claude discovery", () => {
     put(join(config, "settings.json"), JSON.stringify({ enabledPlugins: { "tools@market": true, "off@market": false } }));
     put(join(config, "plugins/installed_plugins.json"), JSON.stringify({ plugins: { "tools@market": [{ installPath: plugin }], "off@market": [{ installPath: plugin }] } }));
     const commands = paneCommands("claude", cwd, home, { environ: [`CLAUDE_CONFIG_DIR=${config}`] }).filter(({ source }) => source !== "builtin");
-    expect(commands).toEqual([
+    expect(commands).toMatchObject([
       { name: "anthropic-skills:probe-skill", description: "Probe skill", source: "skill", origin: "user" },
       { name: "local", description: "Local", source: "user" },
       { name: "tools:check", description: "Check", source: "plugin" },

@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { paneCommands } from "./commands.ts";
+import { walkSkills } from "./skills/walk.ts";
+import { AGENT_SOURCES } from "./skills/index.ts";
+import type { AgentCommandSource } from "./skills/index.ts";
+import type { SlashCommand } from "../shared/protocol.ts";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -70,7 +74,7 @@ describe("omo's loaded commands", () => {
       put(join(root, "group", "inner.md"), "---\ndescription: Nested markdown\n---\n");
     }
     const commands = paneCommands("omo", null, home, { agentDir, pluginDir });
-    expect(commands.filter((command) => command.source === "skill")).toEqual([
+    expect(commands.filter((command) => command.source === "skill")).toMatchObject([
       { name: "skill:group", description: "Nested markdown", source: "skill", origin: "user" },
       { name: "skill:skills", description: "Root markdown", source: "skill", origin: "user" },
     ]);
@@ -88,7 +92,7 @@ describe("omo's loaded commands", () => {
     const { home, agentDir } = fixture();
     const description = "한".repeat(3000);
     put(join(agentDir, "skills", "long", "SKILL.md"), `---\ndescription: ${description}\n---\nname: body-is-not-metadata\n`);
-    expect(paneCommands("omo", null, home, { agentDir }).filter((command) => command.source === "skill")).toEqual([
+    expect(paneCommands("omo", null, home, { agentDir }).filter((command) => command.source === "skill")).toMatchObject([
       { name: "skill:long", description, source: "skill", origin: "user" },
     ]);
   });
@@ -157,8 +161,8 @@ describe("paneCommands", () => {
     writeFileSync(join(cwd, ".claude", "commands", "team", "review.md"), "\nReview this project thoroughly\nMore detail");
 
     const commands = paneCommands("claude", cwd, home);
-    expect(commands).toContainEqual({ name: "deploy", description: "Deploy safely", source: "user" });
-    expect(commands).toContainEqual({ name: "team:review", description: "Review this project thoroughly", source: "project" });
+    expect(commands).toContainEqual(expect.objectContaining({ name: "deploy", description: "Deploy safely", source: "user" }));
+    expect(commands).toContainEqual(expect.objectContaining({ name: "team:review", description: "Review this project thoroughly", source: "project" }));
   });
 });
 
@@ -193,7 +197,7 @@ describe("skills and plugins", () => {
     write(join(home, ".claude", "plugins", "installed_plugins.json"), JSON.stringify({ plugins: { "tools@market": [{ installPath: plugin }] } }));
     write(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "tools@market": true } }));
 
-    expect(paneCommands("claude", cwd, home).filter((command) => command.source !== "builtin")).toEqual([
+    expect(paneCommands("claude", cwd, home).filter((command) => command.source !== "builtin")).toMatchObject([
       { name: "alias:check", description: "Shared check", source: "user" },
       { name: "linked", description: "Shared skill", source: "skill", origin: "user" },
       { name: "review", description: "Shared review", source: "user" },
@@ -203,13 +207,13 @@ describe("skills and plugins", () => {
       { name: "tools:review", description: "Shared review", source: "plugin" },
       { name: "tools:team:check", description: "Shared check", source: "plugin" },
     ]);
-    expect(paneCommands("codex", cwd, home).filter((command) => command.source !== "builtin")).toEqual([
+    expect(paneCommands("codex", cwd, home).filter((command) => command.source !== "builtin")).toMatchObject([
       { name: "prompts:review", description: "Shared review", source: "user" },
     ]);
     const previousPiAgentDir = process.env["PI_CODING_AGENT_DIR"];
     process.env["PI_CODING_AGENT_DIR"] = join(home, ".pi", "agent");
     try {
-      expect(paneCommands("pi", null, home).filter((command) => command.source !== "builtin")).toEqual([
+      expect(paneCommands("pi", null, home).filter((command) => command.source !== "builtin")).toMatchObject([
         { name: "skill:linked", description: "Shared skill", source: "skill", origin: "user" },
         { name: "skill:linked", description: "Shared skill", source: "skill", origin: "user" },
       ]);
@@ -233,7 +237,7 @@ describe("skills and plugins", () => {
     write(join(home, ".claude", "plugins", "installed_plugins.json"), JSON.stringify({ plugins: { "hud@market": [{ installPath: plugin }], "off@market": [{ installPath: off }] } }));
     write(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "hud@market": true, "off@market": false } }));
     const extra = paneCommands("claude", cwd, home).filter((command) => command.source === "skill" || command.source === "plugin");
-    expect(extra).toEqual([
+    expect(extra).toMatchObject([
       { name: "deploy", description: "Ship it", source: "skill", origin: "project" },
       { name: "hud:configure", description: "Configure options", source: "plugin" },
       { name: "hud:setup", description: "Configure the HUD", source: "skill", origin: "plugin" },
@@ -282,10 +286,146 @@ describe("skills and plugins", () => {
     write(join(home, ".codex", "prompts", "review.md"), "Review the diff\n");
     write(join(home, ".codex", "skills", "deepinit", "SKILL.md"), "---\nname: deepinit\ndescription: Deep codebase initialization\n---\n");
     const extra = paneCommands("codex", null, home).filter((command) => command.source !== "builtin");
-    expect(extra).toEqual([
+    expect(extra).toMatchObject([
       { name: "deepinit", description: "Deep codebase initialization", source: "skill", trigger: "$", origin: "user" },
       { name: "prompts:review", description: "Review the diff", source: "user" },
     ]);
+  });
+});
+
+describe("catalog rows", () => {
+  const write = (path: string, text: string) => { mkdirSync(join(path, ".."), { recursive: true }); writeFileSync(path, text); };
+  const SCAN = { transport: "scan", verified: false } as const;
+  // a source registered only for one test, so the rules are checked apart from any agent's scanner
+  function withSource<T>(source: AgentCommandSource, run: (agent: string) => T): T {
+    const agent = "catalog-test-agent";
+    AGENT_SOURCES[agent] = source;
+    try { return run(agent); } finally { delete AGENT_SOURCES[agent]; }
+  }
+
+  it("lets a Claude skill named like a builtin replace it, marked as shadowing it", () => {
+    const home = temp("catalog-claude-");
+    write(join(home, ".claude", "skills", "compact", "SKILL.md"), "---\nname: compact\ndescription: My compaction\n---\n");
+    const rows = paneCommands("claude", null, home).filter((command) => command.name === "compact");
+    expect(rows.map(({ source, shadows }) => ({ source, shadows }))).toEqual([{ source: "skill", shadows: "builtin" }]);
+  });
+
+  it("keeps Codex's $compact skill beside its /compact builtin: they are typed differently", () => {
+    const home = temp("catalog-codex-");
+    write(join(home, ".codex", "skills", "compact", "SKILL.md"), "---\nname: compact\ndescription: My compaction\n---\n");
+    const rows = paneCommands("codex", null, home).filter((command) => command.name === "compact");
+    expect(rows.map(({ source, trigger, shadows, provenance }) => ({ source, trigger, shadows, transport: provenance?.transport }))).toEqual([
+      { source: "builtin", trigger: undefined, shadows: undefined, transport: "static" },
+      { source: "skill", trigger: "$", shadows: undefined, transport: "scan" },
+    ]);
+  });
+
+  it("keeps same-name rows with different ids and collapses the same file reached through a link", () => {
+    const root = temp("catalog-files-");
+    write(join(root, "a", "SKILL.md"), "a");
+    write(join(root, "b", "SKILL.md"), "b");
+    symlinkSync(join(root, "a"), join(root, "link"), "dir");
+    const row = (dir: string): SlashCommand => ({ name: "same", description: dir, source: "skill", id: realpathSync(join(root, dir, "SKILL.md")) });
+    const rows = withSource({ builtins: [], discover: () => [row("a"), row("link"), row("b")] }, (agent) => paneCommands(agent, null, root));
+    expect(rows.map(({ description }) => description)).toEqual(["a", "b"]);
+    // rows without an id are never taken for one another
+    const anonymous = withSource({ builtins: [], discover: () => [{ name: "same", description: "1", source: "skill" }, { name: "same", description: "2", source: "skill" }] }, (agent) => paneCommands(agent, null, root));
+    expect(anonymous.map(({ description }) => description)).toEqual(["1", "2"]);
+  });
+
+  // skills with the same name and description, as files: `a` reached again through `alias`, and `b`
+  const sameNamedSkills = () => {
+    const home = temp("catalog-walk-");
+    const skill = "---\nname: shared\ndescription: One description\n---\n";
+    write(join(home, "r1", "a", "SKILL.md"), skill);
+    write(join(home, "r2", "b", "SKILL.md"), skill);
+    mkdirSync(join(home, "r3"), { recursive: true });
+    symlinkSync(join(home, "r1", "a"), join(home, "r3", "alias"), "dir");
+    const walk = (root: string) => walkSkills(join(home, root), { depth: "recursive", looseMarkdown: "none", ignoreFiles: false, requireDescription: true });
+    const walkAll = () => [...walk("r1"), ...walk("r2"), ...walk("r3")];
+    return { home, a: realpathSync(join(home, "r1", "a", "SKILL.md")), b: realpathSync(join(home, "r2", "b", "SKILL.md")), walked: walkAll(), walkAll };
+  };
+
+  it("gives a walked skill its file's canonical path as id, the same through a link", () => {
+    const { a, b, walked } = sameNamedSkills();
+    expect(walked.map(({ name, id }) => [name, id])).toEqual([["shared", a], ["shared", b], ["shared", a]]);
+  });
+
+  it("collapses rows carrying the same walked id and keeps different files apart, however the scanner orders them", () => {
+    const { home, a, b, walkAll } = sameNamedSkills();
+    const origins = ["user", "project", "bundled"] as const;
+    // the scanner walks and maps inside discover, carrying the walked id into its rows
+    const rows = () => walkAll().map((skill, index): SlashCommand => ({ name: skill.name, description: skill.description, source: "skill", origin: origins[index], id: skill.id }));
+    const listed = (discover: () => SlashCommand[]) => withSource({ builtins: [], discover }, (agent) => paneCommands(agent, null, home)).map(({ origin, id }) => [origin, id]);
+    expect(listed(rows)).toEqual([["user", a], ["project", b]]);
+    // AV5-4: a scanner that reorders its rows ([a, alias, b]) still keeps b and drops only the alias
+    expect(listed(() => { const [first, second, third] = rows(); return [first!, third!, second!]; })).toEqual([["user", a], ["project", b]]);
+  });
+
+  it("never merges two different files of one name and description that a real scanner lists without ids", () => {
+    // AV5-3: pi lists a walked SKILL.md and a Markdown file named in its settings, both `shared`
+    const home = temp("catalog-pi-");
+    const agentDir = join(home, ".pi", "agent");
+    const skill = "---\nname: shared\ndescription: One description\n---\n";
+    write(join(agentDir, "skills", "shared", "SKILL.md"), skill);
+    write(join(home, "elsewhere", "shared.md"), skill);
+    write(join(agentDir, "settings.json"), JSON.stringify({ skills: [join(home, "elsewhere", "shared.md")] }));
+    const rows = paneCommands("pi", null, home, { environ: [`PI_CODING_AGENT_DIR=${agentDir}`] }).filter((command) => command.name === "skill:shared");
+    expect(rows).toHaveLength(2);
+  });
+
+  it("keeps a builtin beside a same-name skill unless the source says skills override builtins", () => {
+    const discover = (): SlashCommand[] => [{ name: "compact", description: "Mine", source: "skill", id: "/skills/compact/SKILL.md" }];
+    const kept = withSource({ builtins: ["compact"], discover }, (agent) => paneCommands(agent, null, temp("catalog-")));
+    expect(kept.map(({ source, shadows }) => [source, shadows])).toEqual([["builtin", undefined], ["skill", undefined]]);
+    const replaced = withSource({ builtins: ["compact"], discover, skillsOverrideBuiltins: true }, (agent) => paneCommands(agent, null, temp("catalog-")));
+    expect(replaced).toEqual([{ name: "compact", description: "Mine", source: "skill", id: "/skills/compact/SKILL.md", shadows: "builtin", forms: [{ match: "bare", interaction: "unknown" }], visibility: "offered", provenance: SCAN }]);
+  });
+
+  it("gives every row provenance, and an unannotated builtin an unknown bare form, offered", () => {
+    const home = temp("catalog-provenance-");
+    write(join(home, ".claude", "skills", "patina", "SKILL.md"), "---\ndescription: Rewrite prose\n---\n");
+    write(join(home, ".claude", "commands", "deploy.md"), "Deploy\n");
+    const rows = paneCommands("claude", null, home);
+    expect(rows.every((command) => command.provenance !== undefined)).toBe(true);
+    expect(rows.filter((command) => command.source !== "builtin").map(({ name, provenance }) => [name, provenance])).toEqual([["deploy", SCAN], ["patina", SCAN]]);
+    expect(rows.find((command) => command.name === "clear")).toEqual({ name: "clear", description: "Clear the conversation", source: "builtin", forms: [{ match: "bare", interaction: "unknown" }], visibility: "offered", provenance: { transport: "static", verified: false } });
+  });
+
+  it("emits declared forms and lists terminal-bound and agent-hidden builtins with their visibility", () => {
+    const source: AgentCommandSource = {
+      builtins: ["model", "clear"], terminalBound: ["theme"], agentHidden: ["clear"],
+      forms: { model: [{ match: "bare", interaction: "dialog", dialog: "model-picker" }, { match: "other", interaction: "none" }] },
+      discover: () => [],
+    };
+    const rows = withSource(source, (agent) => paneCommands(agent, null, temp("catalog-")));
+    expect(rows.map(({ name, visibility, forms }) => [name, visibility, forms])).toEqual([
+      ["clear", "agent-hidden", [{ match: "bare", interaction: "unknown" }]],
+      ["model", "offered", [{ match: "bare", interaction: "dialog", dialog: "model-picker" }, { match: "other", interaction: "none" }]],
+      ["theme", "terminal", [{ match: "bare", interaction: "unknown" }]],
+    ]);
+  });
+
+  it("verifies builtins only when the running version matches the pin by major.minor", () => {
+    const source: AgentCommandSource = { builtins: ["clear"], pin: "2.1.0", discover: () => [{ name: "mine", description: "Mine", source: "skill", id: "mine" }] };
+    const verified = (version: string | null | undefined) => withSource(source, (agent) => paneCommands(agent, null, temp("catalog-"), {}, version)).map(({ name, provenance }) => [name, provenance?.verified]);
+    expect(verified("2.1.301")).toEqual([["clear", true], ["mine", false]]);
+    expect(verified("2.2.0")).toEqual([["clear", false], ["mine", false]]);
+    expect(verified("12.1.0")).toEqual([["clear", false], ["mine", false]]);
+    expect(verified(null)).toEqual([["clear", false], ["mine", false]]);
+    expect(verified(undefined)).toEqual([["clear", false], ["mine", false]]);
+  });
+
+  it("keeps the forms, visibility and provenance a scanner set, once per name and id", () => {
+    const row: SlashCommand = { name: "share", description: "Share", source: "builtin", id: "share", forms: [{ match: "bare", interaction: "none" }], visibility: "terminal", provenance: { transport: "static", verified: true } };
+    const rows = withSource({ builtins: [], discover: () => [row, { ...row }] }, (agent) => paneCommands(agent, null, temp("catalog-")));
+    expect(rows).toEqual([row]);
+  });
+
+  it("passes the version to the scanner", () => {
+    let seen: string | null | undefined = "unset";
+    withSource({ builtins: [], discover: (ctx) => { seen = ctx.version; return []; } }, (agent) => paneCommands(agent, null, temp("catalog-"), {}, "0.162.1"));
+    expect(seen).toBe("0.162.1");
   });
 });
 
@@ -303,7 +443,7 @@ describe("pi's slash commands", () => {
     // so offering it invites a reader into a state only the terminal lens can leave
     expect(commands.map((command) => command.name)).not.toContain("tree");
     // its own verbs, not the omp/codex wording shared by the rest
-    expect(commands).toContainEqual({ name: "quit", description: "Quit pi", source: "builtin" });
+    expect(commands).toContainEqual(expect.objectContaining({ name: "quit", description: "Quit pi", source: "builtin" }));
     expect(commands.map((command) => command.name)).not.toContain("sessions");
     expect(commands.every((command) => command.source === "builtin")).toBeTrue();
   });
@@ -316,7 +456,7 @@ describe("pi's slash commands", () => {
     skill(join(home, ".agents", "skills"), "from-agents", "Found under ~/.agents");
 
     const extra = paneCommands("pi", null, home).filter((command) => command.source !== "builtin");
-    expect(extra).toEqual([
+    expect(extra).toMatchObject([
       { name: "plain", description: "First line wins when there is no frontmatter", source: "user" },
       { name: "review", description: "Review staged git changes", source: "user" },
       // a skill is a command under skill:, which is how pi names it and how it must be typed
@@ -336,7 +476,7 @@ describe("pi's slash commands", () => {
     mkdirSync(join(home, ".pi", "agent", "prompts"), { recursive: true });
     symlinkSync(join(elsewhere, "review.md"), join(home, ".pi", "agent", "prompts", "review.md"));
     const commands = paneCommands("pi", null, home).filter((command) => command.source === "user");
-    expect(commands).toEqual([{ name: "review", description: "Review staged git changes", source: "user" }]);
+    expect(commands).toMatchObject([{ name: "review", description: "Review staged git changes", source: "user" }]);
   });
 
   it("skips a prompt link that resolves to nothing or to a folder", () => {

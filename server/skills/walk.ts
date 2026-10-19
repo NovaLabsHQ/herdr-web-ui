@@ -15,6 +15,13 @@ export interface WalkedSkill {
   readonly description: string;
   readonly path: string;
   readonly fields: Readonly<Record<string, unknown>>;
+  /** the file's canonical (real) path: one file reached through a link has the same id; walkSkills always sets it */
+  readonly id?: string;
+}
+
+/** The file's real path, links resolved: the `id` of a row read from that file. */
+export function canonicalFile(path: string): string {
+  try { return realpathSync(path); } catch { return resolve(path); }
 }
 
 const FRONTMATTER = /^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n---(?:\s*\r?\n|$)/;
@@ -108,7 +115,7 @@ export function walkSkills(root: string, rules: WalkRules): WalkedSkill[] {
       const name = rules.requireDescription
         ? typeof fields.name === "string" && fields.name ? fields.name : basename(dirname(path))
         : skillName(markdown, basename(dirname(path)));
-      result.push({ name, description: rules.requireDescription && typeof fields.description === "string" ? fields.description : description(markdown), path, fields });
+      result.push({ name, description: rules.requireDescription && typeof fields.description === "string" ? fields.description : description(markdown), path, fields, id: canonicalFile(path) });
     } catch { return; /* unreadable skill */ }
   };
   if (rules.depth === "one") {
@@ -209,7 +216,7 @@ export function customCommands(root: string, source: SlashCommand["source"]): Sl
           if (target.isDirectory()) visit(path);
           else if (target.isFile() && entry.name.endsWith(".md")) {
             const relativeName = relative(root, path).slice(0, -3).split(sep).join(":");
-            result.push({ name: relativeName, description: description(readFileSync(path, "utf8")), source });
+            result.push({ name: relativeName, description: description(readFileSync(path, "utf8")), source, id: canonicalFile(path) });
           }
         } catch { continue; }
       }
@@ -243,7 +250,7 @@ export function piTemplates(root: string, source: SlashCommand["source"]): Slash
     } catch {
       continue;
     }
-    result.push({ name: entry.name.slice(0, -3), description: description(markdown), source });
+    result.push({ name: entry.name.slice(0, -3), description: description(markdown), source, id: canonicalFile(join(root, entry.name)) });
   }
   return result;
 }

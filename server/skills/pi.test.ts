@@ -53,7 +53,7 @@ describe("pi's user skills", () => {
     skill(join(home, ".agents", "skills"), "shared");
     put(join(agentDir, "skills", "loose.md"), "---\nname: loose\ndescription: A loose root file\n---\n");
     put(join(agentDir, "skills", "group", "ignored.md"), "---\nname: nested-loose\ndescription: Not at the root\n---\n");
-    expect(extra(home, null)).toEqual([
+    expect(extra(home, null)).toMatchObject([
       { name: "skill:deep-one", description: "deep-one skill", source: "skill", origin: "user" },
       { name: "skill:loose", description: "A loose root file", source: "skill", origin: "user" },
       { name: "skill:shared", description: "shared skill", source: "skill", origin: "user" },
@@ -107,7 +107,7 @@ describe("pi's project skills and prompts", () => {
     const { home, repo, cwd, agentDir } = setup();
     plant(repo, cwd);
     put(join(agentDir, "trust.json"), JSON.stringify({ [repo]: true }));
-    expect(extra(home, cwd)).toEqual([
+    expect(extra(home, cwd)).toMatchObject([
       { name: "ship", description: "Ship it", source: "project" },
       { name: "skill:agents-skill", description: "agents-skill skill", source: "skill", origin: "project" },
       { name: "skill:repo-skill", description: "repo-skill skill", source: "skill", origin: "project" },
