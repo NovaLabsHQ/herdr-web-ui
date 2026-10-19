@@ -165,7 +165,7 @@ What is there:
 - The app is called Ovis (Latin for sheep, the herd herdr tends). Other apps in both stores are
   already named Ovis, so the store listing can say "Ovis for herdr". The bundle ID
   `dev.herdr.app` is still a placeholder.
-- The icon is a ram's head in two blue curls on a white tile with a faint grid
+- The icon is a ram's head in two blue curls on a plain white tile
   (`app/assets/ovis-icon.svg`). The PNGs beside it are the sources for both platforms' icons and
   splash screens. After changing them, run
   `npx @capacitor/assets generate --ios --android --iconBackgroundColor '#ffffff' --splashBackgroundColor '#12100e'`
