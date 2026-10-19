@@ -1803,6 +1803,33 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   `@` completions query `GET /api/pane/files`. Arrow keys navigate, Enter/Tab accepts, Escape closes.
   A listing that failed is told apart from no matches: a `role="status"` row says **Couldn't load
   suggestions. Keep typing to try again.** (every change of the query asks again).
+- Commands that run in the terminal (the catalog's `visibility: "terminal"`, or a bare form whose
+  interaction is the terminal; `terminalCommand`, `src/lib/compose.ts`) are listed apart, last,
+  under **Terminal commands**, and each carries a **Terminal** badge wherever it is listed, under a
+  typed query too (`.composer-menu-badge`: the `.badge` primitive in the quiet register, `--text-dim`
+  on `--bg-elevated`, never shrunk; the description beside it gives way). A row the agent's own
+  menu hides (`agent-hidden`) is never listed, and typed by hand it is sent like any text. The
+  chat never sends a terminal command on its own: picking one keeps the draft and a row in the
+  notices' anatomy (`ComposerNotices`, its group labelled **Terminal command**) stands over the
+  card, lucide `SquareTerminal`, then `/config runs in the terminal; the chat cannot show what it
+  does.` with the command in mono, and two ways on in the held rows' buttons: **Open Terminal**
+  (the pane's terminal lens, nothing sent) and **Run in Terminal** (the usual send, then the
+  terminal lens once the send is acknowledged; a refusal keeps the text and its note here), then
+  the row's X. Typing such a command by hand and pressing Send shows the same row instead of
+  sending; Escape or the X puts it away with the text kept, and Send brings it back. A
+  connection that only observes has no composer at all (PaneTerminal mounts none for it, see
+  Role), so it sees neither the group nor the row; the composer still takes the connection's
+  `role`, and `terminalCommandActions` never offers Run in Terminal to one that observes. Both
+  buttons are in the Tab order, the row is a `role="status"` row, and a phone's card stays docked
+  while it shows, as with any notice. The split follows VS Code's Copilot Chat, whose shell code blocks carry **Insert into
+  Terminal** (and, later, **Run in Terminal**) rather than running the command from the chat
+  (microsoft/vscode #196990, #227707); here the draft stays exactly as the user wrote it.
+- A pane whose rows carry `trigger: "@"` (OpenCode v2 skills, which it takes as `@skill-id`
+  attachments) lists them in the `@` menu under a **Skills** heading before the **Files** group
+  (the listbox is then **Skills and files**), a bare `@` opens that menu, and picking one inserts
+  `@<id> ` (the row's `id`, its name where it has none). A path (`@src/`) never matches a skill:
+  the match is a name's prefix or a word of it, as inline skills are matched. A file listing that
+  failed says so in the Files group, under the skills.
 - Paste, picker or drag/drop attaches up to 100 files per action; the message box names how many it left out.
   An image is stored as a paste, any other file under its own sanitised name. Each uploads through `POST /api/pane/image`, three at a time
   across all picks, and puts a removable editable `@path` mention at the start of the message (after

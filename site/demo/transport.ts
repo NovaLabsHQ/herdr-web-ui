@@ -12,7 +12,7 @@
  * one notice instead of a TUI. A message sent from a chat gets a demo answer.
  * What does not: files, images, push and remote PCs, which need a real machine.
  */
-import type { AgentIntegration, AgentStatus, ConversationTurn, IntegrationsResponse, Machine, MachineEvent, PaneDirection, PaneFindMatch, PaneFindRequest, PanePlan, PaneResized, PaneSplit, PaneSwapped, PaneZoomed, PendingMessage, PlanStep, PluginActionResult, PluginActions, PluginActionsResponse, PortalStatus, ServerMessage, SessionSnapshot, TabMoved, UsageReport, WorkspaceCreated, WorkspaceInfo, WorktreeEntry, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../../shared/protocol.ts";
+import type { AgentIntegration, AgentStatus, CommandForm, ConversationTurn, IntegrationsResponse, Machine, MachineEvent, PaneDirection, PaneFindMatch, PaneFindRequest, PanePlan, PaneResized, PaneSplit, PaneSwapped, PaneZoomed, PendingMessage, PlanStep, PluginActionResult, PluginActions, PluginActionsResponse, PortalStatus, ServerMessage, SessionSnapshot, SlashCommand, TabMoved, UsageReport, WorkspaceCreated, WorkspaceInfo, WorktreeEntry, WorktreeListing, WorktreeOpened, WorktreeRemoved } from "../../shared/protocol.ts";
 import type { RepoDiffFile, RepoDiffFileList, RepoDiffFilePatch, RepoDiffRepository, RepoDiffScope } from "../../shared/protocol.ts";
 import { VOICE_DEFAULTS, type VoiceStatus } from "../../shared/voice.ts";
 import { isAgentName } from "../../shared/agent-name.ts";
@@ -354,6 +354,48 @@ function agentOf(paneId: string): string {
   return SPECS.find((spec) => spec.key === key)?.agent ?? paneOf(paneId)?.agent ?? "the agent";
 }
 
+/**
+ * How Claude's builtins behave, as the bridge describes them (shared/protocol.ts CommandForm): a
+ * screen or output the chat cannot show runs in the terminal, a choice opens a dialog, the rest
+ * needs nothing. The other agents' panes keep the recorded list as it is.
+ */
+const CLAUDE_FORMS: Record<string, CommandForm[]> = {
+  clear: [{ match: "bare", interaction: "none" }],
+  compact: [{ match: "bare", interaction: "none" }, { match: "other", interaction: "none" }],
+  config: [{ match: "bare", interaction: "terminal" }],
+  cost: [{ match: "bare", interaction: "terminal" }],
+  doctor: [{ match: "bare", interaction: "terminal" }],
+  help: [{ match: "bare", interaction: "terminal" }],
+  init: [{ match: "bare", interaction: "none" }],
+  login: [{ match: "bare", interaction: "dialog", dialog: "login" }],
+  logout: [{ match: "bare", interaction: "none" }],
+  memory: [{ match: "bare", interaction: "dialog", dialog: "memory" }],
+  model: [{ match: "bare", interaction: "dialog", dialog: "model" }, { match: "other", interaction: "none" }],
+  permissions: [{ match: "bare", interaction: "dialog", dialog: "permissions" }],
+  "pr-comments": [{ match: "bare", interaction: "none" }, { match: "other", interaction: "none" }],
+  "release-notes": [{ match: "bare", interaction: "terminal" }],
+  review: [{ match: "bare", interaction: "none" }, { match: "other", interaction: "none" }],
+  status: [{ match: "bare", interaction: "terminal" }],
+  "terminal-setup": [{ match: "bare", interaction: "terminal" }],
+  vim: [{ match: "bare", interaction: "none" }],
+};
+/** Claude's own menu hides these; they still run when typed, so the chat sends them as typed and never lists them. */
+const CLAUDE_HIDDEN: SlashCommand[] = [
+  { name: "agents", description: "Manage agent configurations", source: "builtin", visibility: "agent-hidden", forms: [{ match: "bare", interaction: "dialog", dialog: "agents" }] },
+  { name: "heapdump", description: "Write a heap snapshot", source: "builtin", visibility: "agent-hidden", forms: [{ match: "bare", interaction: "none" }] },
+];
+
+/** GET /api/pane/commands: the recorded Claude list, with its forms for a Claude pane. */
+function paneCommandRows(paneId: string): SlashCommand[] {
+  const rows = (commandsFixture as { commands: SlashCommand[] }).commands;
+  if (agentOf(paneId) !== "claude") return rows;
+  const described = rows.map((row) => {
+    const forms = CLAUDE_FORMS[row.name];
+    return { ...row, provenance: { transport: "static" as const, verified: false }, ...(forms ? { forms, id: row.name } : {}) };
+  });
+  return [...described, ...CLAUDE_HIDDEN.map((row) => ({ ...row, provenance: { transport: "static" as const, verified: false }, id: row.name }))];
+}
+
 const now = () => new Date().toISOString();
 
 /** The bridge takes one accepted pending message when the current mock turn finishes. */
@@ -657,7 +699,7 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     answerPrompt(target, typeof body["option_index"] === "number" ? body["option_index"] : undefined);
     return json({ ok: true });
   }
-  if (path === "/api/pane/commands") return json(commandsFixture);
+  if (path === "/api/pane/commands") return json({ commands: paneCommandRows(paneId) });
   if (path === "/api/pane/scroll") {
     const body = method === "POST" ? await bodyOf(init, input) : {};
     const target = method === "POST" ? String(body["pane_id"] ?? "") : paneId;

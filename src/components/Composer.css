@@ -853,6 +853,14 @@
   max-width: 100%;
 }
 
+/* a command that runs in the terminal: the badge primitive (styles.css) in the quiet register, after
+   the name, never shrunk; the description beside it gives way as it does for any row */
+.composer-menu-badge {
+  flex: none;
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+}
+
 .composer-menu .menu-item-hint {
   margin-left: auto;
   flex: 0 1 auto;
@@ -1482,15 +1490,6 @@
   .composer-suggestion-row {
     display: none;
   }
-}
-
-/* A command the agent runs but the chat cannot finish. Advice, not a failure: it reads quieter than
-   .composer-note, which means the message did not go */
-.composer-hint {
-  margin-top: var(--space-1);
-  padding: 0 var(--space-2);
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
 }
 
 /* A phone's input card floats over the transcript's end, as an iPhone's input bar does: the

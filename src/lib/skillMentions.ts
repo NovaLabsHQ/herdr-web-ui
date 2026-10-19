@@ -33,6 +33,8 @@ export function createSkillMatcher(commands: readonly SlashCommand[], syntax: Sk
     if (command.source !== "skill" || command.name === "") continue;
     const trigger = command.trigger ?? "/";
     names.set(trigger + command.name, command.name);
+    // an OpenCode v2 skill is sent as `@id` (Composer.tsx atSkillReplacement): that form chips too
+    if (trigger === "@" && command.id !== undefined && command.id !== "") names.set(`@${command.id}`, command.name);
     if (command.name.startsWith("skill:") && command.name.length > "skill:".length) {
       for (const form of syntax.chipForms) {
         const raw = form.replace("{bare}", command.name.slice("skill:".length));

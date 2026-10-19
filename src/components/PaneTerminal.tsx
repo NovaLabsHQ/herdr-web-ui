@@ -125,6 +125,8 @@ export interface PaneTerminalProps {
   machineName?: string;
   /** the lens over the pane: the chat transcript, or the live xterm grid (App remembers it per pane) */
   view: PaneView;
+  /** switches this pane to its terminal lens: where the chat's composer sends a terminal command on */
+  onOpenTerminal?: () => void;
   findRequest?: number;
   controls?: { current: PaneControls | null };
   /** Only the selected tile may take keyboard focus after async work or a lens change. */
@@ -188,6 +190,7 @@ export function PaneTerminal({
   theme,
   palette,
   role = "interact",
+  onOpenTerminal,
   onRoleAck,
   onConnectionChange,
   onServerMessage,
@@ -3094,6 +3097,8 @@ export function PaneTerminal({
           suggestion={chatPrompt?.pane !== paneId && chatSuggestion?.pane === paneId ? chatSuggestion.value : null}
           restored={chatPrompt?.pane !== paneId && chatRestored?.pane === paneId ? chatRestored.value : null}
           notices={composerNotices}
+          role={observing ? "observe" : role}
+          onOpenTerminal={onOpenTerminal}
           greeting={greetingDue ? (
             <div className={`composer-greeting${greeted ? "" : " is-out"}`} ref={greetingRef} aria-hidden={greeted ? undefined : true}>
               <p className="composer-greeting-title">{t("What should {agent} do in {folder}?", { agent: agentDisplayLabel(agent), folder })}</p>
