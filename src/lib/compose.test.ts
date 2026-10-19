@@ -5,7 +5,7 @@ import { agentDisplayLabel, composerDelivery, composerMessage, composerSendShown
 import { briefDescription, COMMAND_GROUPS, commandGroup, commandsForTrigger, slashCommandReplacement, terminalCommand, terminalCommandActions, typedTerminalCommand } from "./compose.ts";
 import type { SlashCommand } from "../../shared/protocol.ts";
 import { activeTrigger, applyCompletion, type ActiveTrigger } from "./mentions.ts";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { paneCommands } from "../../server/commands.ts";
@@ -493,9 +493,31 @@ describe("terminal commands", () => {
 
 describe("the menu over a catalog the server built", () => {
   // The rows come from the integrated server catalog, serialized as they cross the wire, so the
-  // client is checked against the forms and visibility the scanners really emit, not against
-  // hand-written rows.
+  // client is checked against the forms and visibility the scanners really emit (Codex: terminal
+  // screens and the popup's agent-hidden rows), not against hand-written rows.
+  function codexRows(): SlashCommand[] {
+    const home = mkdtempSync(join(tmpdir(), "compose-catalog-"));
+    try {
+      mkdirSync(join(home, ".codex", "skills", "deploy"), { recursive: true });
+      writeFileSync(join(home, ".codex", "skills", "deploy", "SKILL.md"), "---\nname: deploy\ndescription: Ship it\n---\n");
+      return JSON.parse(JSON.stringify(paneCommands("codex", null, home))) as SlashCommand[];
+    } finally { rmSync(home, { recursive: true, force: true }); }
+  }
   const slash: ActiveTrigger = { kind: "slash", query: "", start: 0, end: 1 };
+
+  it("lists the terminal screens in the terminal group and never lists the agent-hidden rows", () => {
+    const rows = codexRows();
+    const listed = commandsForTrigger(rows, "codex", slash);
+    const names = new Set(listed.map((row) => row.name));
+    const terminal = new Set(listed.filter((row) => commandGroup(row) === "terminal").map((row) => row.name));
+    for (const name of ["config", "resume", "permissions", "mcp", "status", "review"]) expect(terminal.has(name)).toBeTrue();
+    for (const name of ["model", "compact", "init"]) expect(names.has(name) && !terminal.has(name)).toBeTrue();
+    for (const name of ["apps", "debug-config", "debug-m-drop", "debug-m-update"]) {
+      expect(rows.some((row) => row.name === name && row.visibility === "agent-hidden")).toBeTrue();
+      expect(names.has(name)).toBeFalse();
+    }
+    expect(commandsForTrigger(rows, "codex", { ...slash, prefix: "$" }).map((row) => [row.name, commandGroup(row)])).toEqual([["deploy", "skill-user"]]);
+  });
 
   it("lists Claude's terminal screens apart and leaves out what Claude's own menu hides", () => {
     const home = mkdtempSync(join(tmpdir(), "compose-catalog-"));
@@ -513,5 +535,14 @@ describe("the menu over a catalog the server built", () => {
     }
     expect(typedTerminalCommand(rows, "/config")?.name).toBe("config");
     expect(typedTerminalCommand(rows, "/heapdump")).toBeNull();
+  });
+
+  it("offers the terminal for what the catalog says needs it, and sends the rest as typed", () => {
+    const rows = codexRows();
+    expect(typedTerminalCommand(rows, "/config")?.name).toBe("config");
+    expect(typedTerminalCommand(rows, "/review")?.name).toBe("review");
+    expect(typedTerminalCommand(rows, "/review the auth change")).toBeNull();
+    expect(typedTerminalCommand(rows, "/apps")).toBeNull();
+    expect(typedTerminalCommand(rows, "/compact")).toBeNull();
   });
 });

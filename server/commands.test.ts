@@ -207,7 +207,8 @@ describe("skills and plugins", () => {
       { name: "tools:review", description: "Shared review", source: "plugin" },
       { name: "tools:team:check", description: "Shared check", source: "plugin" },
     ]);
-    expect(paneCommands("codex", cwd, home).filter((command) => command.source !== "builtin")).toMatchObject([
+    expect(paneCommands("codex", cwd, home, {}, "0.117.0").filter((command) => command.source !== "builtin")).toMatchObject([
+      { name: "linked", description: "Shared skill", source: "skill", trigger: "$", origin: "project" },
       { name: "prompts:review", description: "Shared review", source: "user" },
     ]);
     const previousPiAgentDir = process.env["PI_CODING_AGENT_DIR"];
@@ -285,7 +286,7 @@ describe("skills and plugins", () => {
     const home = temp("codex-home-");
     write(join(home, ".codex", "prompts", "review.md"), "Review the diff\n");
     write(join(home, ".codex", "skills", "deepinit", "SKILL.md"), "---\nname: deepinit\ndescription: Deep codebase initialization\n---\n");
-    const extra = paneCommands("codex", null, home).filter((command) => command.source !== "builtin");
+    const extra = paneCommands("codex", null, home, {}, "0.117.0").filter((command) => command.source !== "builtin");
     expect(extra).toMatchObject([
       { name: "deepinit", description: "Deep codebase initialization", source: "skill", trigger: "$", origin: "user" },
       { name: "prompts:review", description: "Review the diff", source: "user" },
