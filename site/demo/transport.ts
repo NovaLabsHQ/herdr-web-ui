@@ -640,7 +640,7 @@ async function route(url: URL, method: string, init: RequestInit | undefined, in
     const chat = key ? chats.get(key) : undefined;
     const agent = agentOf(paneId);
     if (!chat) return json({ source: "scrollback", turns: [] });
-    const source = agent === "claude" ? "claude-transcript" : agent === "codex" ? "codex-transcript" : agent === "gjc" ? "gjc-transcript" : agent === "omo" ? "omo-transcript" : agent === "pi" ? "pi-transcript" : agent === "devin" ? "devin-transcript" : agent === "hermes" ? "hermes-transcript" : "omp-transcript";
+    const source = agent === "claude" ? "claude-transcript" : agent === "codex" ? "codex-transcript" : agent === "gjc" ? "gjc-transcript" : agent === "omo" ? "omo-transcript" : agent === "pi" ? "pi-transcript" : agent === "devin" ? "devin-transcript" : agent === "hermes" ? "hermes-transcript" : agent === "droid" ? "droid-transcript" : "omp-transcript";
     // These demo fixtures have no native Grok/Agy lifecycle: omit optional activity.
     return json({ source, turns: chat.turns, metadata: chat.metadata, cursor: null });
   }

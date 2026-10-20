@@ -159,6 +159,8 @@ export function createServer(
     devinDbPath?: string;
     /** Native Hermes store; pane process HERMES_HOME wins when this is unset. Tests use an isolated store. */
     hermesHome?: string;
+    /** Factory's droid sessions directory; unset, droid's own store under the home directory (`HERDR_WEB_DROID_SESSIONS` overrules it). Tests use an isolated store. */
+    droidSessionsDir?: string;
     updates?: UpdateService;
     /** updates herdr itself (server/herdr-update.ts); unset, the app offers no herdr update. Tests pass one that runs a stand-in herdr. */
     herdrUpdate?: HerdrUpdater;

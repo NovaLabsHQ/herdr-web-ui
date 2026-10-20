@@ -38,6 +38,8 @@ export function parseConversationMetadata(text: string, source: ConversationResp
   const metadata: ConversationMetadata = before ? { ...before } : { model: null, reasoning_effort: null };
   // Agy's exported rows do not attest the selected model or reasoning effort.
   if (source === "agy-transcript") return metadata;
+  // droid's session records name no model or effort either, so nothing here could read one
+  if (source === "droid-transcript") return metadata;
   // pi states the provider on the same records that state usage, so the window is asked for
   // from what this line says rather than remembered across sources
   let piProvider: string | null = null;

@@ -58,6 +58,7 @@ import { forgetAllPiIndexes, forgetPiIndex, piAbandonedTurns, piBranchRecords, p
 import { trimOutput } from "./tool-output.ts";
 import { parseConversationMetadata } from "./conversation-metadata.ts";
 import { forgetHermesTranscriptState, hermesConversationPage, hermesToolOutput, hermesTranscriptForPane } from "./hermes.ts";
+import { droidOpensTurn, droidResultText, droidSessionId, droidTranscriptPath, parseDroidTranscript } from "./droid.ts";
 
 import { invokedSkill } from "./skill-activity.ts";
 import { claudeCommandEcho } from "./skill-invocations/claude.ts";
@@ -495,7 +496,7 @@ export class HistoryChanged extends Error {
 /** What paneConversation resolved: which store the turns came from, and where they start. */
 export type RecognizedConversation = {
   activity?: "thinking" | "working" | "idle";
-  source: "grok-transcript" | "agy-transcript" | "claude-transcript" | "omp-transcript" | "omo-transcript" | "gjc-transcript" | "pi-transcript" | "codex-transcript" | "devin-transcript" | "opencode-transcript" | "hermes-transcript";
+  source: "grok-transcript" | "agy-transcript" | "claude-transcript" | "omp-transcript" | "omo-transcript" | "gjc-transcript" | "pi-transcript" | "codex-transcript" | "devin-transcript" | "opencode-transcript" | "hermes-transcript" | "droid-transcript";
   turns: ConversationTurn[];
   metadata: ConversationMetadata;
   /** `metadata` was read off the agent's own screen (ConversationResponse.screen) */
@@ -633,7 +634,9 @@ function readStream(stream: TranscriptStream, from: number, to: number): Buffer 
 const SETTING_TYPES = ['"model_change"', '"thinking_level_change"'];
 const clearScans = new Map<string, { id: string; scanned: number; floor: number; tail: string; settings: Partial<Record<"model_change" | "thinking_level_change", { offset: number; end: number; line: string }>> }>();
 function applyHistoryBoundary(path: string, stream: TranscriptStream, source: RecognizedConversation["source"]): void {
-  if (source === "codex-transcript" || source === "grok-transcript" || source === "agy-transcript") return;
+  // droid keeps no reset control record: a compaction folds the conversation into a summary
+  // rather than ending the history, so its floor is the file's start as its parser reads it
+  if (source === "codex-transcript" || source === "grok-transcript" || source === "agy-transcript" || source === "droid-transcript") return;
   let scan = clearScans.get(path);
   if (!scan || scan.id !== stream.id || scan.scanned > stream.length || bytesBefore(stream, scan.scanned) !== scan.tail) {
     scan = { id: stream.id, scanned: 0, floor: 0, tail: "", settings: {} };
@@ -687,6 +690,7 @@ const TURN_MARK: Record<StreamSource, Buffer> = {
   "omo-transcript": Buffer.from('"user"'),
   "gjc-transcript": Buffer.from('"user"'),
   "pi-transcript": Buffer.from('"user"'),
+  "droid-transcript": Buffer.from('"user"'),
 };
 
 /**
@@ -700,6 +704,8 @@ function opensTurn(source: StreamSource, line: string): boolean {
   try { entry = JSON.parse(line); } catch { return false; }
   if (entry === null || typeof entry !== "object") return false;
   if (source === "codex-transcript") return entry.type === "event_msg" && entry.payload?.type === "task_started";
+  // droid's user messages are also the records its runtime injected, which open no turn
+  if (source === "droid-transcript") return droidOpensTurn(entry);
   if (source !== "claude-transcript") {
     const message = piMessage(entry);
     return message?.role === "user" && (message.content as Record<string, unknown>[]).some((part) => part.type === "text" && typeof part.text === "string" && part.text.length > 0);
@@ -931,6 +937,7 @@ function parseTurns(source: RecognizedConversation["source"], path: string, text
     }
   }
   if (source === "agy-transcript") return parseAgyTranscript(text, path);
+  if (source === "droid-transcript") return parseDroidTranscript(text);
   return source === "codex-transcript" ? parseCodexTranscript(text, Infinity)
     // only pi keeps a tool's images in the entry as base64; omp, omo and gjc are read the same
     // way but would carry image refs nothing can answer, so the option stays with pi alone
@@ -1337,7 +1344,7 @@ export type NativeTranscript =
  * label: omo's own store is read only when omo is really running
  * in that pane, never on a matching cwd alone.
  */
-async function resolveTranscript(pane: HerdrPane, cwd: string, codexHome?: string, panes?: HerdrPane[], opencodeDb?: string, hermesHome?: string, grokHome?: string): Promise<ResolvedTranscript> {
+async function resolveTranscript(pane: HerdrPane, cwd: string, codexHome?: string, panes?: HerdrPane[], opencodeDb?: string, hermesHome?: string, grokHome?: string, droidSessions?: string): Promise<ResolvedTranscript> {
   const paneId = pane.pane_id;
   let agent = pane.agent ?? pane.agent_session?.agent ?? "";
   // herdr names no agent for this pane: a session report an earlier agent left behind says
@@ -1407,6 +1414,15 @@ async function resolveTranscript(pane: HerdrPane, cwd: string, codexHome?: strin
       const resolved = await hermesTranscriptForPane(pane, cwd, hermesHome);
       return { source: "hermes-transcript", path: resolved.dbPath, sessionId: resolved.sessionId };
     }
+    if (agent === "droid") {
+      // herdr's own integration names the session; a file it does not name is another
+      // session's, so the store's folder is never searched for one that looks alike
+      const session = droidSessionId(pane);
+      if (session === null) throw new ConversationUnavailable("no_session_id");
+      const path = droidTranscriptPath(session, sessionCwd, droidSessions);
+      if (path === null) throw new ConversationUnavailable("no_session_path");
+      return { source: "droid-transcript", path };
+    }
     throw new ConversationUnavailable("no_recognized_transcript");
   } catch (error) {
     if (error instanceof AgyUnavailable) throw new ConversationUnavailable("transcript_missing");
@@ -1464,7 +1480,7 @@ export function devinSessionForPane(pane: HerdrPane, panes: HerdrPane[], argv: s
 }
 
 /** Resolve the native live file or database session without reading conversation turns. */
-export async function paneTranscript(paneId: string, codexHome?: string, snapshot?: SessionSnapshot, devinDbPath?: string, opencodeDb?: string, hermesHome?: string, grokHome?: string): Promise<NativeTranscript> {
+export async function paneTranscript(paneId: string, codexHome?: string, snapshot?: SessionSnapshot, devinDbPath?: string, opencodeDb?: string, hermesHome?: string, grokHome?: string, droidSessions?: string): Promise<NativeTranscript> {
   const panes = (snapshot ?? await sessionSnapshot()).panes;
   const pane = panes.find((candidate) => candidate.pane_id === paneId);
   if (pane === undefined) throw new ConversationUnavailable("pane_not_found");
@@ -1489,7 +1505,7 @@ export async function paneTranscript(paneId: string, codexHome?: string, snapsho
     }
   }
 
-  return resolveTranscript(pane, pane.cwd, codexHome, panes, opencodeDb, hermesHome, grokHome);
+  return resolveTranscript(pane, pane.cwd, codexHome, panes, opencodeDb, hermesHome, grokHome, droidSessions);
 }
 
 /**
@@ -1505,7 +1521,7 @@ export async function paneTranscript(paneId: string, codexHome?: string, snapsho
  * shows the pages before it. A cursor from another file throws HistoryChanged.
  * `opencodeDb` is OpenCode's store, unset where OpenCode itself would find it.
  */
-export async function paneConversation(paneId: string, codexHome?: string, page: ConversationPage = {}, devinDbPath?: string, opencodeDb?: string, hermesHome?: string, grokHome?: string): Promise<RecognizedConversation> {
+export async function paneConversation(paneId: string, codexHome?: string, page: ConversationPage = {}, devinDbPath?: string, opencodeDb?: string, hermesHome?: string, grokHome?: string, droidSessions?: string): Promise<RecognizedConversation> {
   const snapshot = await sessionSnapshot();
   let resolved: NativeTranscript;
 
@@ -1537,7 +1553,7 @@ export async function paneConversation(paneId: string, codexHome?: string, page:
   };
 
   try {
-    resolved = await paneTranscript(paneId, codexHome, snapshot, devinDbPath, opencodeDb, hermesHome, grokHome);
+    resolved = await paneTranscript(paneId, codexHome, snapshot, devinDbPath, opencodeDb, hermesHome, grokHome, droidSessions);
     launchedAgents.forget(paneId);
   } catch (error) {
     if (error instanceof ConversationNotStarted) { launchedAgents.forget(paneId); return await onNotStarted(error); }
@@ -1590,7 +1606,7 @@ export async function paneConversation(paneId: string, codexHome?: string, page:
       throw error;
     }
   }
-  const identity = resolved.source === "agy-transcript" ? resolved.path
+  const identity = resolved.source === "agy-transcript" || resolved.source === "droid-transcript" ? resolved.path
     : resolved.source === "claude-transcript" ? nodePath.basename(resolved.path, ".jsonl")
     : resolved.source === "pi-transcript" || resolved.source === "omp-transcript" ? realpathSync(resolved.path) : null;
   rememberPaneRead(paneId, resolved.path);
@@ -1757,13 +1773,13 @@ const TOOL_REF = /^[A-Za-z0-9_:.-]{1,128}$/;
 const TOOL_OUTPUT_MAX = 2_000_000;
 
 /** The whole output of a tool call whose page output was cut, by its id; null when there is none. */
-export async function toolOutput(paneId: string, ref: string, codexHome?: string, opencodeDb?: string, hermesHome?: string, grokHome?: string): Promise<string | null> {
+export async function toolOutput(paneId: string, ref: string, codexHome?: string, opencodeDb?: string, hermesHome?: string, grokHome?: string, droidSessions?: string): Promise<string | null> {
   if (!TOOL_REF.test(ref)) return null;
   const snapshot = await sessionSnapshot();
   const pane = snapshot.panes.find((candidate) => candidate.pane_id === paneId);
   if (pane === undefined || typeof pane.cwd !== "string" || pane.cwd.length === 0) return null;
   let resolved: ResolvedTranscript;
-  try { resolved = await resolveTranscript(pane, pane.cwd, codexHome, snapshot.panes, opencodeDb, hermesHome, grokHome); }
+  try { resolved = await resolveTranscript(pane, pane.cwd, codexHome, snapshot.panes, opencodeDb, hermesHome, grokHome, droidSessions); }
   catch (error) { if (error instanceof ConversationUnavailable) return null; throw error; }
   if (resolved.source === "opencode-transcript") {
     const output = opencodeToolOutput(resolved.path, resolved.session, ref);
@@ -1866,6 +1882,8 @@ function outputInText(source: RecognizedConversation["source"], text: string, re
     } else if (source === "codex-transcript") {
       const payload = entry.payload as { type?: unknown; call_id?: unknown; output?: unknown } | undefined;
       if ((payload?.type === "function_call_output" || payload?.type === "custom_tool_call_output") && payload.call_id === ref) output = codexOutputText(payload.output);
+    } else if (source === "droid-transcript") {
+      output = droidResultText(entry, ref);
     } else {
       const message = piMessage(entry);
       if (message) output = piResults(message).find((result) => result.id === ref)?.text ?? null;
